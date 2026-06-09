@@ -50,8 +50,10 @@ lib/
         └── widgets/              # dumb, reusable widgets
 ```
 
-The reference implementation is **`features/savings_goals/`** — copy its shape
-for every new feature.
+Two features follow this exact shape: **`features/savings_goals/`** (the piggy
+banks) and **`features/transactions/`** (income & expenses). Copy either when
+adding a new feature. The two tabs are hosted by `lib/app/view/home_shell.dart`,
+an app-level `NavigationBar` shell (not a clean-arch feature itself).
 
 ## Data flow (example: "Add money to a goal")
 
