@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_piggypal_app/app/view/home_shell.dart';
 import 'package:flutter_piggypal_app/core/theme/app_theme.dart';
-import 'package:flutter_piggypal_app/features/savings_goals/presentation/view/savings_goals_page.dart';
 import 'package:flutter_piggypal_app/l10n/l10n.dart';
 
 class App extends StatelessWidget {
@@ -14,7 +14,7 @@ class App extends StatelessWidget {
       darkTheme: AppTheme.dark(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const SavingsGoalsPage(),
+      home: const HomeShell(),
     );
   }
 }

@@ -7,6 +7,13 @@ import 'package:flutter_piggypal_app/features/savings_goals/domain/usecases/crea
 import 'package:flutter_piggypal_app/features/savings_goals/domain/usecases/delete_goal.dart';
 import 'package:flutter_piggypal_app/features/savings_goals/domain/usecases/watch_goals.dart';
 import 'package:flutter_piggypal_app/features/savings_goals/presentation/bloc/savings_goals_bloc.dart';
+import 'package:flutter_piggypal_app/features/transactions/data/datasources/transaction_local_data_source.dart';
+import 'package:flutter_piggypal_app/features/transactions/data/repositories/transaction_repository_impl.dart';
+import 'package:flutter_piggypal_app/features/transactions/domain/repositories/transaction_repository.dart';
+import 'package:flutter_piggypal_app/features/transactions/domain/usecases/add_transaction.dart';
+import 'package:flutter_piggypal_app/features/transactions/domain/usecases/delete_transaction.dart';
+import 'package:flutter_piggypal_app/features/transactions/domain/usecases/watch_transactions.dart';
+import 'package:flutter_piggypal_app/features/transactions/presentation/bloc/transactions_bloc.dart';
 import 'package:get_it/get_it.dart';
 
 /// The app's service locator. `sl` == "service locator".
@@ -25,6 +32,7 @@ final GetIt sl = GetIt.instance;
 Future<void> initDependencies({AppDatabase? database}) async {
   _initCore(database);
   _initSavingsGoals();
+  _initTransactions();
 }
 
 void _initCore(AppDatabase? database) {
@@ -54,5 +62,29 @@ void _initSavingsGoals() {
     // Data source.
     ..registerLazySingleton<SavingsGoalLocalDataSource>(
       () => SavingsGoalLocalDataSourceImpl(sl()),
+    );
+}
+
+void _initTransactions() {
+  sl
+    // Bloc — fresh per screen.
+    ..registerFactory(
+      () => TransactionsBloc(
+        watchTransactions: sl(),
+        addTransaction: sl(),
+        deleteTransaction: sl(),
+      ),
+    )
+    // Use cases.
+    ..registerLazySingleton(() => WatchTransactions(sl()))
+    ..registerLazySingleton(() => AddTransaction(sl()))
+    ..registerLazySingleton(() => DeleteTransaction(sl()))
+    // Repository.
+    ..registerLazySingleton<TransactionRepository>(
+      () => TransactionRepositoryImpl(sl()),
+    )
+    // Data source.
+    ..registerLazySingleton<TransactionLocalDataSource>(
+      () => TransactionLocalDataSourceImpl(sl()),
     );
 }
