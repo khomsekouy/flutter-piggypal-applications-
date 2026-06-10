@@ -72,7 +72,25 @@ The goals list refreshes automatically: the bloc subscribes to
 `watchGoals()`, a live Drift stream, so any write re-emits the new list — no
 manual reload after create/contribute/delete.
 
-## Adding a new feature (e.g. `transactions`)
+## Adding a new feature
+
+### Quick start — the generator
+
+Scaffold the entire folder structure (all three layers + bloc + page) with one
+command:
+
+```bash
+dart run tool/new_feature.dart auth          # or any snake_case name
+```
+
+It creates `lib/features/auth/` with a compiling, lint-clean skeleton
+(entity, repository, use cases, model, local data source, repository impl,
+bloc/event/state, page), auto-formats it, and prints the exact wiring steps
+(Drift table, DI registration, navigation). Existing folders are never
+overwritten. Then follow the manual steps below to fill in the real fields and
+queries.
+
+### Manual steps (what the generator leaves for you)
 
 1. **Table** — add `core/database/tables/transactions_table.dart`, register it
    in `AppDatabase`'s `@DriftDatabase(tables: [...])`, bump `schemaVersion` and
@@ -90,6 +108,7 @@ manual reload after create/contribute/delete.
 ## Commands
 
 ```bash
+dart run tool/new_feature.dart <name>   # scaffold a new feature folder
 dart run build_runner build        # regenerate Drift code (app_database.g.dart)
 dart run build_runner watch        # regenerate on save
 flutter analyze                    # lint (very_good_analysis)

@@ -83,9 +83,9 @@ class _SavingsGoalsView extends StatelessWidget {
                     return GoalCard(
                       goal: goal,
                       onAddMoney: () => _addMoney(context, goal),
-                      onDelete: () => context
-                          .read<SavingsGoalsBloc>()
-                          .add(GoalDeleted(goal.id)),
+                      onDelete: () => context.read<SavingsGoalsBloc>().add(
+                        GoalDeleted(goal.id),
+                      ),
                     );
                   },
                 ),
@@ -125,8 +125,9 @@ class _SummaryHeader extends StatelessWidget {
           children: [
             Text(
               'Total saved',
-              style: theme.textTheme.labelLarge
-                  ?.copyWith(color: theme.colorScheme.onPrimary),
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onPrimary,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -162,16 +163,20 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.savings_outlined,
-                size: 72, color: theme.colorScheme.primary),
+            Icon(
+              Icons.savings_outlined,
+              size: 72,
+              color: theme.colorScheme.primary,
+            ),
             const SizedBox(height: 16),
             Text('No goals yet', style: theme.textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               'Tap "New goal" to start saving for something special.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.outline),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
           ],
         ),

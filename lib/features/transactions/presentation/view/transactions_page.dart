@@ -15,8 +15,9 @@ class TransactionsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => sl<TransactionsBloc>()
-        ..add(const TransactionsSubscriptionRequested()),
+      create: (_) =>
+          sl<TransactionsBloc>()
+            ..add(const TransactionsSubscriptionRequested()),
       child: const _TransactionsView(),
     );
   }
@@ -78,9 +79,9 @@ class _TransactionsView extends StatelessWidget {
                       final transaction = state.transactions[index];
                       return TransactionTile(
                         transaction: transaction,
-                        onDelete: () => context
-                            .read<TransactionsBloc>()
-                            .add(TransactionDeleted(transaction.id)),
+                        onDelete: () => context.read<TransactionsBloc>().add(
+                          TransactionDeleted(transaction.id),
+                        ),
                       );
                     },
                   ),
@@ -117,8 +118,9 @@ class _BalanceHeader extends StatelessWidget {
           children: [
             Text(
               'Balance',
-              style: theme.textTheme.labelLarge
-                  ?.copyWith(color: theme.colorScheme.onPrimary),
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onPrimary,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -175,8 +177,9 @@ class _Stat extends StatelessWidget {
           children: [
             Text(
               label,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: onPrimary.withValues(alpha: 0.8)),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: onPrimary.withValues(alpha: 0.8),
+              ),
             ),
             Text(
               MoneyFormatter.format(amount),
@@ -204,16 +207,20 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.receipt_long_outlined,
-                size: 72, color: theme.colorScheme.primary),
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 72,
+              color: theme.colorScheme.primary,
+            ),
             const SizedBox(height: 16),
             Text('No transactions yet', style: theme.textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               'Tap "Add" to record your first income or expense.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.outline),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
           ],
         ),

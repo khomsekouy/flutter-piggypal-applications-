@@ -23,9 +23,9 @@ class SavingsGoalLocalDataSourceImpl implements SavingsGoalLocalDataSource {
   @override
   Future<List<SavingsGoalModel>> getGoals() async {
     try {
-      final rows = await (_db.select(_db.savingsGoals)
-            ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
-          .get();
+      final rows = await (_db.select(
+        _db.savingsGoals,
+      )..orderBy([(t) => OrderingTerm.desc(t.createdAt)])).get();
       return rows.map(SavingsGoalModel.fromRow).toList();
     } catch (e) {
       throw DatabaseException(e.toString());
@@ -59,9 +59,9 @@ class SavingsGoalLocalDataSourceImpl implements SavingsGoalLocalDataSource {
   ) async {
     // Read-modify-write inside a transaction so the balance can't race.
     return _db.transaction(() async {
-      final row = await (_db.select(_db.savingsGoals)
-            ..where((t) => t.id.equals(goalId)))
-          .getSingleOrNull();
+      final row = await (_db.select(
+        _db.savingsGoals,
+      )..where((t) => t.id.equals(goalId))).getSingleOrNull();
       if (row == null) {
         throw const NotFoundException('Savings goal not found.');
       }
@@ -78,8 +78,9 @@ class SavingsGoalLocalDataSourceImpl implements SavingsGoalLocalDataSource {
   @override
   Future<void> deleteGoal(String goalId) async {
     try {
-      await (_db.delete(_db.savingsGoals)..where((t) => t.id.equals(goalId)))
-          .go();
+      await (_db.delete(
+        _db.savingsGoals,
+      )..where((t) => t.id.equals(goalId))).go();
     } catch (e) {
       throw DatabaseException(e.toString());
     }

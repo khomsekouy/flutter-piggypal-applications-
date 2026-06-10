@@ -120,16 +120,16 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 labelText: 'Title',
                 hintText: 'e.g. Groceries',
               ),
-              validator: (value) =>
-                  (value == null || value.trim().isEmpty)
-                      ? 'Add a title'
-                      : null,
+              validator: (value) => (value == null || value.trim().isEmpty)
+                  ? 'Add a title'
+                  : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _amountController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
               ],

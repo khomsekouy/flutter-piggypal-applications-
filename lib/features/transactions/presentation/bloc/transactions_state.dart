@@ -13,9 +13,8 @@ class TransactionsState extends Equatable {
   final List<Transaction> transactions;
   final String? errorMessage;
 
-  double get totalIncome => transactions
-      .where((t) => t.isIncome)
-      .fold(0, (sum, t) => sum + t.amount);
+  double get totalIncome =>
+      transactions.where((t) => t.isIncome).fold(0, (sum, t) => sum + t.amount);
 
   double get totalExpense => transactions
       .where((t) => !t.isIncome)

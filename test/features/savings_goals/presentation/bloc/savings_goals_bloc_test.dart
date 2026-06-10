@@ -57,18 +57,17 @@ void main() {
   });
 
   SavingsGoalsBloc buildBloc() => SavingsGoalsBloc(
-        watchGoals: watchGoals,
-        createGoal: createGoal,
-        addContribution: addContribution,
-        deleteGoal: deleteGoal,
-      );
+    watchGoals: watchGoals,
+    createGoal: createGoal,
+    addContribution: addContribution,
+    deleteGoal: deleteGoal,
+  );
 
   group('SavingsGoalsBloc', () {
     blocTest<SavingsGoalsBloc, SavingsGoalsState>(
       'emits [loading, success] with goals from the stream',
       setUp: () {
-        when(() => watchGoals(any()))
-            .thenAnswer((_) => Stream.value([goal]));
+        when(() => watchGoals(any())).thenAnswer((_) => Stream.value([goal]));
       },
       build: buildBloc,
       act: (bloc) => bloc.add(const GoalsSubscriptionRequested()),
@@ -84,8 +83,7 @@ void main() {
     blocTest<SavingsGoalsBloc, SavingsGoalsState>(
       'calls createGoal use case on GoalCreated',
       setUp: () {
-        when(() => createGoal(any()))
-            .thenAnswer((_) async => Right(goal));
+        when(() => createGoal(any())).thenAnswer((_) async => Right(goal));
       },
       build: buildBloc,
       act: (bloc) => bloc.add(

@@ -24,12 +24,12 @@ class SavingsGoalsBloc extends Bloc<SavingsGoalsEvent, SavingsGoalsState> {
     required AddContribution addContribution,
     required DeleteGoal deleteGoal,
     Uuid? uuid,
-  })  : _watchGoals = watchGoals,
-        _createGoal = createGoal,
-        _addContribution = addContribution,
-        _deleteGoal = deleteGoal,
-        _uuid = uuid ?? const Uuid(),
-        super(const SavingsGoalsState()) {
+  }) : _watchGoals = watchGoals,
+       _createGoal = createGoal,
+       _addContribution = addContribution,
+       _deleteGoal = deleteGoal,
+       _uuid = uuid ?? const Uuid(),
+       super(const SavingsGoalsState()) {
     on<GoalsSubscriptionRequested>(_onSubscriptionRequested);
     on<GoalCreated>(_onGoalCreated);
     on<ContributionAdded>(_onContributionAdded);

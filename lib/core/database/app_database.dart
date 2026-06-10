@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flutter_piggypal_app/core/database/tables/programs_table.dart';
 import 'package:flutter_piggypal_app/core/database/tables/savings_goals_table.dart';
 import 'package:flutter_piggypal_app/core/database/tables/transactions_table.dart';
 import 'package:path/path.dart' as p;
@@ -14,7 +15,7 @@ part 'app_database.g.dart';
 /// New features add their table to the [DriftDatabase.tables] list and bump
 /// [schemaVersion] (with a migration). Feature data sources receive this
 /// instance via dependency injection and run their own queries against it.
-@DriftDatabase(tables: [SavingsGoals, Transactions])
+@DriftDatabase(tables: [SavingsGoals, Transactions, Programs])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -22,18 +23,22 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) => m.createAll(),
-        onUpgrade: (m, from, to) async {
-          // v1 → v2: transactions feature added.
-          if (from < 2) {
-            await m.createTable(transactions);
-          }
-        },
-      );
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      // v1 → v2: transactions feature added.
+      if (from < 2) {
+        await m.createTable(transactions);
+      }
+      // v2 → v3: programs feature added.
+      if (from < 3) {
+        await m.createTable(programs);
+      }
+    },
+  );
 }
 
 QueryExecutor _openConnection() {

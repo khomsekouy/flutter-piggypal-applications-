@@ -20,11 +20,11 @@ class TransactionsBloc extends Bloc<TransactionsEvent, TransactionsState> {
     required AddTransaction addTransaction,
     required DeleteTransaction deleteTransaction,
     Uuid? uuid,
-  })  : _watchTransactions = watchTransactions,
-        _addTransaction = addTransaction,
-        _deleteTransaction = deleteTransaction,
-        _uuid = uuid ?? const Uuid(),
-        super(const TransactionsState()) {
+  }) : _watchTransactions = watchTransactions,
+       _addTransaction = addTransaction,
+       _deleteTransaction = deleteTransaction,
+       _uuid = uuid ?? const Uuid(),
+       super(const TransactionsState()) {
     on<TransactionsSubscriptionRequested>(_onSubscriptionRequested);
     on<TransactionAdded>(_onTransactionAdded);
     on<TransactionDeleted>(_onTransactionDeleted);
@@ -67,8 +67,7 @@ class TransactionsBloc extends Bloc<TransactionsEvent, TransactionsState> {
       date: event.date,
       createdAt: _now(),
     );
-    final result =
-        await _addTransaction(AddTransactionParams(transaction));
+    final result = await _addTransaction(AddTransactionParams(transaction));
     result.match(
       (failure) => emit(
         state.copyWith(
@@ -85,8 +84,7 @@ class TransactionsBloc extends Bloc<TransactionsEvent, TransactionsState> {
     TransactionDeleted event,
     Emitter<TransactionsState> emit,
   ) async {
-    final result =
-        await _deleteTransaction(DeleteTransactionParams(event.id));
+    final result = await _deleteTransaction(DeleteTransactionParams(event.id));
     result.match(
       (failure) => emit(
         state.copyWith(

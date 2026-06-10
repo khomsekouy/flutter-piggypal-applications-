@@ -13,8 +13,7 @@ class SavingsGoals extends Table {
   DateTimeColumn get deadline => dateTime().nullable()();
   IntColumn get colorValue =>
       integer().withDefault(const Constant(0xFF8E4DFF))();
-  TextColumn get iconName =>
-      text().withDefault(const Constant('savings'))();
+  TextColumn get iconName => text().withDefault(const Constant('savings'))();
   DateTimeColumn get createdAt => dateTime()();
 
   @override

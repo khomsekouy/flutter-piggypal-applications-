@@ -14,12 +14,10 @@ class SavingsGoalsState extends Equatable {
   final String? errorMessage;
 
   /// Combined target across every goal.
-  double get totalTarget =>
-      goals.fold(0, (sum, g) => sum + g.targetAmount);
+  double get totalTarget => goals.fold(0, (sum, g) => sum + g.targetAmount);
 
   /// Combined saved balance across every goal.
-  double get totalSaved =>
-      goals.fold(0, (sum, g) => sum + g.currentAmount);
+  double get totalSaved => goals.fold(0, (sum, g) => sum + g.currentAmount);
 
   SavingsGoalsState copyWith({
     SavingsGoalsStatus? status,

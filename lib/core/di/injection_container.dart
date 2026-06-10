@@ -1,4 +1,12 @@
 import 'package:flutter_piggypal_app/core/database/app_database.dart';
+import 'package:flutter_piggypal_app/features/programs/data/datasources/programs_local_data_source.dart';
+import 'package:flutter_piggypal_app/features/programs/data/programs_seed.dart';
+import 'package:flutter_piggypal_app/features/programs/data/repositories/programs_repository_impl.dart';
+import 'package:flutter_piggypal_app/features/programs/domain/repositories/programs_repository.dart';
+import 'package:flutter_piggypal_app/features/programs/domain/usecases/delete_programs.dart';
+import 'package:flutter_piggypal_app/features/programs/domain/usecases/save_programs.dart';
+import 'package:flutter_piggypal_app/features/programs/domain/usecases/watch_programs_list.dart';
+import 'package:flutter_piggypal_app/features/programs/presentation/bloc/programs_bloc.dart';
 import 'package:flutter_piggypal_app/features/savings_goals/data/datasources/savings_goal_local_data_source.dart';
 import 'package:flutter_piggypal_app/features/savings_goals/data/repositories/savings_goal_repository_impl.dart';
 import 'package:flutter_piggypal_app/features/savings_goals/domain/repositories/savings_goal_repository.dart';
@@ -33,6 +41,10 @@ Future<void> initDependencies({AppDatabase? database}) async {
   _initCore(database);
   _initSavingsGoals();
   _initTransactions();
+  _initPrograms();
+
+  // Seed the programs table on first run so the wired list has content.
+  await seedPrograms(sl<ProgramsLocalDataSource>());
 }
 
 void _initCore(AppDatabase? database) {
@@ -86,5 +98,25 @@ void _initTransactions() {
     // Data source.
     ..registerLazySingleton<TransactionLocalDataSource>(
       () => TransactionLocalDataSourceImpl(sl()),
+    );
+}
+
+void _initPrograms() {
+  sl
+    // Bloc — fresh per screen.
+    ..registerFactory(
+      () => ProgramsBloc(watchProgramsList: sl(), deletePrograms: sl()),
+    )
+    // Use cases.
+    ..registerLazySingleton(() => WatchProgramsList(sl()))
+    ..registerLazySingleton(() => SavePrograms(sl()))
+    ..registerLazySingleton(() => DeletePrograms(sl()))
+    // Repository.
+    ..registerLazySingleton<ProgramsRepository>(
+      () => ProgramsRepositoryImpl(sl()),
+    )
+    // Data source.
+    ..registerLazySingleton<ProgramsLocalDataSource>(
+      () => ProgramsLocalDataSourceImpl(sl()),
     );
 }

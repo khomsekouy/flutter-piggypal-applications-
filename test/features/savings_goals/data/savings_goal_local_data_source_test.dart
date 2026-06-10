@@ -9,12 +9,12 @@ void main() {
   late SavingsGoalLocalDataSourceImpl dataSource;
 
   SavingsGoalModel model({double current = 0}) => SavingsGoalModel(
-        id: 'goal-1',
-        name: 'Laptop',
-        targetAmount: 1000,
-        currentAmount: current,
-        createdAt: DateTime(2026),
-      );
+    id: 'goal-1',
+    name: 'Laptop',
+    targetAmount: 1000,
+    currentAmount: current,
+    createdAt: DateTime(2026),
+  );
 
   setUp(() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
