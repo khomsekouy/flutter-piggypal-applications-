@@ -42,17 +42,18 @@ void main() {
   });
 
   TransactionsBloc buildBloc() => TransactionsBloc(
-        watchTransactions: watchTransactions,
-        addTransaction: addTransaction,
-        deleteTransaction: deleteTransaction,
-      );
+    watchTransactions: watchTransactions,
+    addTransaction: addTransaction,
+    deleteTransaction: deleteTransaction,
+  );
 
   group('TransactionsBloc', () {
     blocTest<TransactionsBloc, TransactionsState>(
       'emits [loading, success] with transactions from the stream',
       setUp: () {
-        when(() => watchTransactions(any()))
-            .thenAnswer((_) => Stream.value([tx]));
+        when(
+          () => watchTransactions(any()),
+        ).thenAnswer((_) => Stream.value([tx]));
       },
       build: buildBloc,
       act: (bloc) => bloc.add(const TransactionsSubscriptionRequested()),
@@ -68,8 +69,7 @@ void main() {
     blocTest<TransactionsBloc, TransactionsState>(
       'calls addTransaction use case on TransactionAdded',
       setUp: () {
-        when(() => addTransaction(any()))
-            .thenAnswer((_) async => Right(tx));
+        when(() => addTransaction(any())).thenAnswer((_) async => Right(tx));
       },
       build: buildBloc,
       act: (bloc) => bloc.add(

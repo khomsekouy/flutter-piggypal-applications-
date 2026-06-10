@@ -11,8 +11,7 @@ class Transactions extends Table {
   TextColumn get title => text().withLength(min: 1, max: 100)();
   RealColumn get amount => real()();
   TextColumn get type => text()();
-  TextColumn get category =>
-      text().withDefault(const Constant('General'))();
+  TextColumn get category => text().withDefault(const Constant('General'))();
   TextColumn get note => text().nullable()();
   DateTimeColumn get date => dateTime()();
   DateTimeColumn get createdAt => dateTime()();

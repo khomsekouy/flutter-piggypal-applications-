@@ -35,8 +35,7 @@ class TransactionTile extends StatelessWidget {
         child: Icon(Icons.delete, color: theme.colorScheme.onErrorContainer),
       ),
       child: ListTile(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         tileColor: theme.colorScheme.surfaceContainerHighest,
         leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: 0.15),
@@ -52,8 +51,10 @@ class TransactionTile extends StatelessWidget {
         ),
         trailing: Text(
           '$sign${MoneyFormatter.format(transaction.amount)}',
-          style: theme.textTheme.titleMedium
-              ?.copyWith(color: color, fontWeight: FontWeight.bold),
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

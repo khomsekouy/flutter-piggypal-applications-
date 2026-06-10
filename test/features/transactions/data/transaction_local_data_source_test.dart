@@ -13,15 +13,14 @@ void main() {
     String id = 'tx-1',
     TransactionType type = TransactionType.expense,
     double amount = 50,
-  }) =>
-      TransactionModel(
-        id: id,
-        title: 'Coffee',
-        amount: amount,
-        type: type,
-        date: DateTime(2026, 6),
-        createdAt: DateTime(2026, 6),
-      );
+  }) => TransactionModel(
+    id: id,
+    title: 'Coffee',
+    amount: amount,
+    type: type,
+    date: DateTime(2026, 6),
+    createdAt: DateTime(2026, 6),
+  );
 
   setUp(() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
@@ -42,8 +41,7 @@ void main() {
     });
 
     test('persists the transaction type across a round-trip', () async {
-      await dataSource
-          .upsertTransaction(model(type: TransactionType.income));
+      await dataSource.upsertTransaction(model(type: TransactionType.income));
 
       final result = await dataSource.getTransactions();
 

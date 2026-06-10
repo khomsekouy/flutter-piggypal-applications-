@@ -21,15 +21,16 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
 
   // Newest first: by transaction date, then insertion time as a tiebreaker.
   List<OrderingTerm Function($TransactionsTable)> get _ordering => [
-        (t) => OrderingTerm.desc(t.date),
-        (t) => OrderingTerm.desc(t.createdAt),
-      ];
+    (t) => OrderingTerm.desc(t.date),
+    (t) => OrderingTerm.desc(t.createdAt),
+  ];
 
   @override
   Future<List<TransactionModel>> getTransactions() async {
     try {
-      final rows =
-          await (_db.select(_db.transactions)..orderBy(_ordering)).get();
+      final rows = await (_db.select(
+        _db.transactions,
+      )..orderBy(_ordering)).get();
       return rows.map(TransactionModel.fromRow).toList();
     } catch (e) {
       throw DatabaseException(e.toString());
@@ -38,9 +39,9 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
 
   @override
   Stream<List<TransactionModel>> watchTransactions() {
-    return (_db.select(_db.transactions)..orderBy(_ordering))
-        .watch()
-        .map((rows) => rows.map(TransactionModel.fromRow).toList());
+    return (_db.select(_db.transactions)..orderBy(_ordering)).watch().map(
+      (rows) => rows.map(TransactionModel.fromRow).toList(),
+    );
   }
 
   @override

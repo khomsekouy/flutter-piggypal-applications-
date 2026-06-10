@@ -28,8 +28,13 @@ class GoalCreated extends SavingsGoalsEvent {
   final String iconName;
 
   @override
-  List<Object?> get props =>
-      [name, targetAmount, deadline, colorValue, iconName];
+  List<Object?> get props => [
+    name,
+    targetAmount,
+    deadline,
+    colorValue,
+    iconName,
+  ];
 }
 
 class ContributionAdded extends SavingsGoalsEvent {

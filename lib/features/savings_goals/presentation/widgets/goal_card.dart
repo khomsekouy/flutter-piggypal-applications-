@@ -81,8 +81,9 @@ class GoalCard extends StatelessWidget {
                 ),
                 Text(
                   MoneyFormatter.format(goal.targetAmount),
-                  style: theme.textTheme.labelLarge
-                      ?.copyWith(color: theme.colorScheme.outline),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
                 ),
               ],
             ),

@@ -74,16 +74,16 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
                 labelText: 'What are you saving for?',
                 hintText: 'e.g. New laptop',
               ),
-              validator: (value) =>
-                  (value == null || value.trim().isEmpty)
-                      ? 'Give your goal a name'
-                      : null,
+              validator: (value) => (value == null || value.trim().isEmpty)
+                  ? 'Give your goal a name'
+                  : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _amountController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
               ],
