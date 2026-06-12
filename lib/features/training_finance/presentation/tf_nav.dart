@@ -28,6 +28,10 @@ abstract final class TFScreens {
   static const receipts = 'receipts';
   static const pnl = 'pnl';
   static const add = 'add';
+  static const addTx = 'addtx';
+  static const category = 'category';
+  static const categories = 'categories';
+  static const history = 'history';
 }
 
 /// Identifiers for root tabs.

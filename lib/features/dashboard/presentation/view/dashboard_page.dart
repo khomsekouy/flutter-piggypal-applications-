@@ -1,425 +1,337 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
-import 'package:flutter_piggypal_app/features/training_finance/data/tf_mock_data.dart';
-import 'package:flutter_piggypal_app/features/training_finance/data/tf_models.dart';
+import 'package:flutter_piggypal_app/features/dashboard/data/budget_store.dart';
+import 'package:flutter_piggypal_app/features/dashboard/presentation/widgets/dashboard_widgets.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_app_bar.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_charts.dart';
-import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_rows.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_widgets.dart';
 
-/// The "Overview" tab: cash hero, quick actions, KPIs, active programs, recent.
-class DashboardPage extends StatelessWidget {
+/// The "Home" tab: monthly budget overview broken down by category.
+class DashboardPage extends StatefulWidget {
   const DashboardPage({required this.nav, super.key});
 
   final TFNav nav;
 
   @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  String _query = '';
+
+  /// How many category cards show on Home before "View all" opens the full
+  /// categories page (a 2×2 preview).
+  static const _catPreviewCount = 4;
+
+  /// How many transactions preview on Home before "View all" opens history.
+  static const _txPreviewCount = 10;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<BudgetCat>>(
+      valueListenable: BudgetStore.instance.cats,
+      builder: (context, allCats, _) {
+        final totalSpent = allCats.fold<double>(0, (s, x) => s + x.spent);
+        final totalBudget = allCats.fold<double>(0, (s, x) => s + x.budget);
+        final usedPct = totalBudget == 0
+            ? 0
+            : ((totalSpent / totalBudget) * 100).round();
+        final remaining = totalBudget - totalSpent;
+
+        final q = _query.trim().toLowerCase();
+        final searching = q.isNotEmpty;
+        final cats = searching
+            ? allCats.where((x) => x.label.toLowerCase().contains(q)).toList()
+            : allCats;
+
+        // Home shows a 2×2 preview; "View all" opens the full categories page.
+        // While searching we show every match inline.
+        final visibleCats = searching
+            ? cats
+            : cats.take(_catPreviewCount).toList();
+        final canViewAll = !searching && cats.length > _catPreviewCount;
+
+        return TFScreen(
+          header: const _Header(month: 'May 2025'),
+          children: [
+            // Hero balance card: headline spend, usage ring, budget split.
+            _HeroBalance(
+              spent: totalSpent,
+              budget: totalBudget,
+              usedPct: usedPct,
+              remaining: remaining,
+            ),
+
+            // Categories.
+            TFSectionLabel(
+              title: 'Categories',
+              action: canViewAll ? 'View all' : null,
+              onAction: canViewAll
+                  ? () => widget.nav.push(TFScreens.categories)
+                  : null,
+            ),
+            DashboardSearchField(
+              hint: 'Search categories',
+              onChanged: (v) => setState(() => _query = v),
+            ),
+            const SizedBox(height: 14),
+            if (cats.isEmpty)
+              TFEmptyMessage('No categories match “$_query”.', topPadding: 30)
+            else
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.08,
+                children: [
+                  for (final cat in visibleCats)
+                    CategoryCard(
+                      cat: cat,
+                      onTap: () => widget.nav.push(TFScreens.category, {
+                        'label': cat.label,
+                      }),
+                    ),
+                ],
+              ),
+
+            // Recent transaction history (preview; "View all" opens history).
+            ValueListenableBuilder<List<RecentTx>>(
+              valueListenable: BudgetStore.instance.recent,
+              builder: (context, recent, _) {
+                final shown = recent.take(_txPreviewCount).toList();
+                return Column(
+                  children: [
+                    TFSectionLabel(
+                      title: 'Recent History',
+                      action: 'View all',
+                      onAction: () => widget.nav.push(TFScreens.history),
+                    ),
+                    TFCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: Column(
+                        children: [
+                          for (final (i, tx) in shown.indexed)
+                            TxHistoryRow(tx: tx, first: i == 0),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Top bar: overview eyebrow + month selector, with a trailing icon button.
+class _Header extends StatelessWidget {
+  const _Header({required this.month});
+
+  final String month;
+
+  @override
   Widget build(BuildContext context) {
     final c = context.tfc;
-    final db = TFData.instance;
-    return TFScreen(
-      padBody: false,
-      header: TFAppBar(
-        eyebrow: db.org.name,
-        title: 'Overview',
-        trailing: const TFIconButton(icon: Icons.notifications_outlined),
-      ),
-      children: [
-        // Hero balance card.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: TFCard(
-            padding: const EdgeInsets.all(18),
-            borderColor: c.primaryLine,
-            gradient: LinearGradient(
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-              colors: [
-                Color.lerp(c.surface, c.primary, 0.24)!,
-                c.surface,
-              ],
-              stops: const [0, 0.62],
-            ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      child: Row(
+        children: [
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Cash on hand',
-                      style: TFText.sans(
-                        size: 12.5,
-                        color: c.textMuted,
-                      ),
-                    ),
-                    TFPill(label: db.org.period, tone: PillTone.primary),
-                  ],
+                Text(
+                  'OVERVIEW',
+                  style: TFText.mono(
+                    size: 11,
+                    color: c.textDim,
+                    letterSpacing: 1.4,
+                  ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  TFData.fmt(db.org.cash),
-                  style: TFText.num(
-                    size: 38,
-                    color: c.text,
-                    letterSpacing: -1.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
                 Row(
                   children: [
                     Text(
-                      '▲ Net ${TFData.fmt(db.netProfit)}',
+                      month,
                       style: TFText.sans(
-                        size: 13,
+                        size: 23,
                         weight: FontWeight.w700,
-                        color: c.pos,
+                        color: c.text,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(width: 18),
-                    Text(
-                      '${TFData.fmt(db.outstanding)} outstanding',
-                      style: TFText.sans(
-                        size: 13,
-                        color: c.textMuted,
-                      ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 22,
+                      color: c.textMuted,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                TFAreaChart(income: db.incomeSeries, expense: db.expenseSeries),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      for (final m in db.months)
-                        Text(
-                          m,
-                          style: TFText.sans(
-                            size: 10.5,
-                            color: c.textDim,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    TFLegend(color: c.pos, label: 'Income'),
-                    const SizedBox(width: 16),
-                    TFLegend(color: c.neg, label: 'Expenses', dashed: true),
                   ],
                 ),
               ],
             ),
           ),
-        ),
-
-        // Quick actions.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.south_rounded,
-                  label: 'Add income',
-                  fg: c.pos,
-                  bg: c.posSoft,
-                  onTap: () => nav.push(TFScreens.add, {'kind': TxKind.income}),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.north_rounded,
-                  label: 'Add expense',
-                  fg: c.neg,
-                  bg: c.negSoft,
-                  onTap: () =>
-                      nav.push(TFScreens.add, {'kind': TxKind.expense}),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.photo_camera_outlined,
-                  label: 'Scan receipt',
-                  fg: c.primary,
-                  bg: c.primarySoft,
-                  onTap: () => nav.push(TFScreens.receipts),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // KPI tiles.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: TFTile(
-                      icon: Icons.south_rounded,
-                      tone: c.pos,
-                      label: 'Income',
-                      value: TFData.fmtK(db.totalIncome),
-                      delta: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TFTile(
-                      icon: Icons.north_rounded,
-                      tone: c.neg,
-                      label: 'Expenses',
-                      value: TFData.fmtK(db.totalExpense),
-                      delta: 9,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TFTile(
-                      icon: Icons.balance,
-                      tone: c.primary,
-                      label: 'Net profit',
-                      value: TFData.fmtK(db.netProfit),
-                      delta: 26,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TFTile(
-                      icon: Icons.track_changes,
-                      tone: c.warn,
-                      label: 'Budget used',
-                      value: '${db.budgetUsedPct}%',
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        // Active programs (horizontal).
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-          child: TFSectionLabel(
-            title: 'Active programs',
-            action: 'See all',
-            onAction: () => nav.tab(TFTabs.programs),
-          ),
-        ),
-        SizedBox(
-          height: 168,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-            itemCount: db.programs
-                .where((p) => p.status == ProgramStatus.active)
-                .length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, i) {
-              final p = db.programs
-                  .where((p) => p.status == ProgramStatus.active)
-                  .elementAt(i);
-              return _ActiveProgramCard(
-                program: p,
-                onTap: () => nav.push(TFScreens.program, {'id': p.id}),
-              );
-            },
-          ),
-        ),
-
-        // Recent activity.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: [
-              TFSectionLabel(
-                title: 'Recent activity',
-                action: 'See all',
-                onAction: () => nav.push(TFScreens.txList, {'filter': 'all'}),
-              ),
-              TFCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                child: Column(
-                  children: [
-                    for (final (i, t) in db.tx.take(5).indexed)
-                      TxRow(
-                        tx: t,
-                        first: i == 0,
-                        onTap: () => nav.push(TFScreens.txDetail, {'id': t.id}),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.fg,
-    required this.bg,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color fg;
-  final Color bg;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.tfc;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: c.line),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(icon, size: 18, color: fg),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              label,
-              style: TFText.sans(size: 11.5, color: c.text),
-            ),
-          ],
-        ),
+          const TFIconButton(icon: Icons.notifications_none_rounded),
+        ],
       ),
     );
   }
 }
 
-class _ActiveProgramCard extends StatelessWidget {
-  const _ActiveProgramCard({required this.program, required this.onTap});
+/// Bold gradient "balance" card: headline spend + usage ring + budget split.
+class _HeroBalance extends StatelessWidget {
+  const _HeroBalance({
+    required this.spent,
+    required this.budget,
+    required this.usedPct,
+    required this.remaining,
+  });
 
-  final Program program;
-  final VoidCallback onTap;
+  final double spent;
+  final double budget;
+  final int usedPct;
+  final double remaining;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.tfc;
-    final p = program;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 210,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: c.line),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TFGlyphBadge(
-                  size: 36,
-                  radius: 11,
-                  hue: p.hue,
-                  child: Text(p.code.substring(0, 2)),
-                ),
-                TFStatusPill.program(p.status),
-              ],
-            ),
-            const SizedBox(height: 11),
-            SizedBox(
-              height: 34,
-              child: Text(
-                p.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TFText.sans(
-                  size: 14,
-                  weight: FontWeight.w700,
-                  color: c.text,
-                  height: 1.25,
+    final accent = context.tf.accent;
+    const ink = Colors.white;
+    return TFCard(
+      radius: 24,
+      padding: const EdgeInsets.all(20),
+      borderColor: Colors.transparent,
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color.lerp(accent, Colors.white, 0.14)!,
+          accent,
+          Color.lerp(accent, Colors.black, 0.26)!,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Total Spent',
+                      style: TFText.sans(
+                        size: 13,
+                        color: ink.withValues(alpha: 0.82),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      formatMoney(spent),
+                      style: TFText.num(
+                        size: 32,
+                        color: ink,
+                        letterSpacing: -1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: ink.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '↑ 12% vs Apr',
+                        style: TFText.sans(size: 11.5, color: ink),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        TFData.fmtK(p.profit),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TFText.num(size: 16, color: c.pos),
-                      ),
-                      Text(
-                        'net profit',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TFText.sans(
-                          size: 10.5,
-                          color: c.textDim,
-                        ),
-                      ),
-                    ],
+              const SizedBox(width: 12),
+              TFDonut(
+                size: 78,
+                stroke: 8,
+                segments: [
+                  DonutSegment(usedPct.toDouble(), ink),
+                  DonutSegment(
+                    (100 - usedPct).toDouble(),
+                    ink.withValues(alpha: 0.24),
                   ),
+                ],
+                center: Text(
+                  '$usedPct%',
+                  style: TFText.num(size: 16, color: ink),
                 ),
-                const SizedBox(width: 8),
-                TFSpark(
-                  data: [
-                    p.budget * 0.2,
-                    p.spent * 0.5,
-                    p.income * 0.6,
-                    p.income * 0.8,
-                    p.income,
-                  ],
-                  color: tfCatColor(p.hue),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(height: 1, color: ink.withValues(alpha: 0.18)),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _HeroStat(label: 'Budget', value: formatMoney(budget)),
+              const SizedBox(width: 16),
+              Container(
+                width: 1,
+                height: 30,
+                color: ink.withValues(alpha: 0.18),
+              ),
+              const SizedBox(width: 16),
+              _HeroStat(
+                label: 'Remaining',
+                value: formatMoney(remaining < 0 ? 0 : remaining),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    const ink = Colors.white;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TFText.sans(size: 11.5, color: ink.withValues(alpha: 0.75)),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: TFText.num(size: 16, color: ink, letterSpacing: -0.4),
+          ),
+        ],
       ),
     );
   }

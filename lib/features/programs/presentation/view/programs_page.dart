@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/di/injection_container.dart';
-import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
-import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/programs/domain/entities/program.dart';
 import 'package:flutter_piggypal_app/features/programs/presentation/bloc/programs_bloc.dart';
 import 'package:flutter_piggypal_app/features/programs/presentation/widgets/program_card.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_app_bar.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_segmented.dart';
+import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_widgets.dart';
 
 /// The "Programs" tab.
 ///
@@ -52,23 +51,32 @@ class _ProgramsViewState extends State<_ProgramsView> {
             : all.where((p) => p.status == _filter).toList();
 
         return TFScreen(
-          header: TFAppBar(
-            eyebrow: '${all.length} programs',
-            title: 'Programs',
-            trailing: const TFIconButton(icon: Icons.search),
+          pinnedHeader: true,
+          header: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TFAppBar(
+                eyebrow: '${all.length} programs',
+                title: 'Programs',
+                trailing: const TFIconButton(icon: Icons.search),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                child: TFSegmented<ProgramStatus?>(
+                  value: _filter,
+                  options: const [null, ...ProgramStatus.values],
+                  labelOf: (s) => switch (s) {
+                    null => 'All',
+                    ProgramStatus.active => 'Active',
+                    ProgramStatus.upcoming => 'Upcoming',
+                    ProgramStatus.completed => 'Completed',
+                  },
+                  onChanged: (s) => setState(() => _filter = s),
+                ),
+              ),
+            ],
           ),
           children: [
-            TFSegmented<ProgramStatus?>(
-              value: _filter,
-              options: const [null, ...ProgramStatus.values],
-              labelOf: (s) => switch (s) {
-                null => 'All',
-                ProgramStatus.active => 'Active',
-                ProgramStatus.upcoming => 'Upcoming',
-                ProgramStatus.completed => 'Completed',
-              },
-              onChanged: (s) => setState(() => _filter = s),
-            ),
             const SizedBox(height: 14),
             ..._body(context, state, list),
           ],
@@ -92,10 +100,12 @@ class _ProgramsViewState extends State<_ProgramsView> {
       ];
     }
     if (state.status == ProgramsStatus.failure) {
-      return [_Message(state.errorMessage ?? 'Could not load programs.')];
+      return [
+        TFEmptyMessage(state.errorMessage ?? 'Could not load programs.'),
+      ];
     }
     if (list.isEmpty) {
-      return const [_Message('No programs here.')];
+      return const [TFEmptyMessage('No programs here.')];
     }
     return [
       for (final p in list) ...[
@@ -106,28 +116,5 @@ class _ProgramsViewState extends State<_ProgramsView> {
         const SizedBox(height: 12),
       ],
     ];
-  }
-}
-
-class _Message extends StatelessWidget {
-  const _Message(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 64),
-      child: Center(
-        child: Text(
-          text,
-          style: TFText.sans(
-            size: 13,
-            weight: FontWeight.w500,
-            color: context.tfc.textDim,
-          ),
-        ),
-      ),
-    );
   }
 }

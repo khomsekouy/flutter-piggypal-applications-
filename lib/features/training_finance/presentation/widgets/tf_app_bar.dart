@@ -153,6 +153,7 @@ class TFScreen extends StatelessWidget {
     required this.children,
     this.bottomPadding = 108,
     this.padBody = true,
+    this.pinnedHeader = false,
     super.key,
   });
 
@@ -161,9 +162,49 @@ class TFScreen extends StatelessWidget {
   final double bottomPadding;
   final bool padBody;
 
+  /// When true, [header] stays fixed at the top and only [children] scroll.
+  /// Use this for list screens with a header filter (e.g. Programs) so the
+  /// title + tab bar don't scroll away with the list.
+  final bool pinnedHeader;
+
   @override
   Widget build(BuildContext context) {
     final c = context.tfc;
+
+    final body = padBody
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          );
+
+    final content = pinnedHeader
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header,
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: bottomPadding),
+                  child: body,
+                ),
+              ),
+            ],
+          )
+        : SingleChildScrollView(
+            padding: EdgeInsets.only(bottom: bottomPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [header, body],
+            ),
+          );
+
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: RadialGradient(
@@ -176,28 +217,7 @@ class TFScreen extends StatelessWidget {
           stops: const [0, 0.6],
         ),
       ),
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: bottomPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              header,
-              if (padBody)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: children,
-                  ),
-                )
-              else
-                ...children,
-            ],
-          ),
-        ),
-      ),
+      child: SafeArea(bottom: false, child: content),
     );
   }
 }

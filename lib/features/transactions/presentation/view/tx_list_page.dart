@@ -58,6 +58,7 @@ class _TxListPageState extends State<TxListPage> {
           };
 
     return TFScreen(
+      pinnedHeader: true,
       header: isPush
           ? TFBackBar(
               title: title,

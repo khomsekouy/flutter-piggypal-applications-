@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/budgets/presentation/view/budgets_page.dart';
+import 'package:flutter_piggypal_app/features/category_detial/presentation/view/category_detial_page.dart';
+import 'package:flutter_piggypal_app/features/dashboard/presentation/view/add_tx_page.dart';
+import 'package:flutter_piggypal_app/features/dashboard/presentation/view/categories_page.dart';
 import 'package:flutter_piggypal_app/features/dashboard/presentation/view/dashboard_page.dart';
+import 'package:flutter_piggypal_app/features/dashboard/presentation/view/history_page.dart';
 import 'package:flutter_piggypal_app/features/more/presentation/view/more_page.dart';
 import 'package:flutter_piggypal_app/features/participants/presentation/view/participant_detail_page.dart';
 import 'package:flutter_piggypal_app/features/participants/presentation/view/participants_page.dart';
@@ -90,6 +94,13 @@ class _TFShellState extends State<TFShell> implements TFNav {
         nav: this,
         presetKind: p['kind'] as TxKind?,
       ),
+      TFScreens.addTx => AddTxPage(nav: this, presetCat: p['cat'] as String?),
+      TFScreens.category => CategoryDetialPage(
+        nav: this,
+        label: p['label']! as String,
+      ),
+      TFScreens.categories => CategoriesPage(nav: this),
+      TFScreens.history => HistoryPage(nav: this),
       _ => DashboardPage(nav: this),
     };
   }
@@ -98,7 +109,8 @@ class _TFShellState extends State<TFShell> implements TFNav {
   Widget build(BuildContext context) {
     final c = context.tfc;
     final top = _stack.isEmpty ? null : _stack.last;
-    final isAdd = top?.screen == TFScreens.add;
+    final isAdd =
+        top?.screen == TFScreens.add || top?.screen == TFScreens.addTx;
     final pushed = top != null;
 
     final body = pushed ? _buildPushed(top) : _buildTab(_tab);
@@ -117,6 +129,17 @@ class _TFShellState extends State<TFShell> implements TFNav {
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 240),
                 switchInCurve: const Cubic(0.2, 0.7, 0.3, 1),
+                // Top-align children. The default switcher layout centers its
+                // child, so a short page (e.g. a filter with one result) floats
+                // to the middle and the header jumps down. Top-aligning keeps
+                // the header pinned regardless of content height.
+                layoutBuilder: (currentChild, previousChildren) => Stack(
+                  alignment: Alignment.topCenter,
+                  children: [
+                    ...previousChildren,
+                    ?currentChild,
+                  ],
+                ),
                 transitionBuilder: (child, anim) {
                   final slide = Tween<Offset>(
                     begin: Offset(pushed ? 0.06 : 0, pushed ? 0 : 0.03),

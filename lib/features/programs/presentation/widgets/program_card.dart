@@ -105,6 +105,10 @@ class ProgramCard extends StatelessWidget {
 }
 
 /// Maps the domain [ProgramStatus] onto the shared status pill.
+///
+/// Note: the design-system `TFStatusPill.program` switches on the prototype's
+/// `ProgramStatus` (a different enum), so it can't be used for the domain
+/// entity here — this mapping is the domain-aware equivalent.
 TFPill _statusPill(ProgramStatus status) {
   final (PillTone tone, String label) = switch (status) {
     ProgramStatus.active => (PillTone.pos, 'Active'),
