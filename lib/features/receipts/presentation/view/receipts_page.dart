@@ -24,6 +24,7 @@ class ReceiptsPage extends StatelessWidget {
     final pending = db.receipts.length - matched;
 
     return TFScreen(
+      pinnedHeader: true,
       header: TFBackBar(
         title: 'Receipts',
         onBack: nav.back,

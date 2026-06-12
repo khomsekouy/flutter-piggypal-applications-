@@ -321,6 +321,32 @@ class TFTile extends StatelessWidget {
   }
 }
 
+/// A centered, dimmed message for empty / error / not-found states.
+class TFEmptyMessage extends StatelessWidget {
+  const TFEmptyMessage(this.text, {this.topPadding = 64, super.key});
+
+  final String text;
+  final double topPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: topPadding),
+      child: Center(
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TFText.sans(
+            size: 13,
+            weight: FontWeight.w500,
+            color: context.tfc.textDim,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// A section header with an optional trailing action link.
 class TFSectionLabel extends StatelessWidget {
   const TFSectionLabel({

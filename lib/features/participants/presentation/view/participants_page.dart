@@ -39,6 +39,7 @@ class _ParticipantsPageState extends State<ParticipantsPage> {
     final due = db.participants.fold<double>(0, (s, u) => s + u.due);
 
     return TFScreen(
+      pinnedHeader: true,
       header: prog != null
           ? TFBackBar(title: 'Participants', onBack: widget.nav.back)
           : TFAppBar(
@@ -111,19 +112,7 @@ class _ParticipantsPageState extends State<ParticipantsPage> {
         TFCard(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: list.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Center(
-                    child: Text(
-                      'No participants here.',
-                      style: TFText.sans(
-                        size: 13,
-                        weight: FontWeight.w500,
-                        color: c.textDim,
-                      ),
-                    ),
-                  ),
-                )
+              ? const TFEmptyMessage('No participants here.', topPadding: 24)
               : Column(
                   children: [
                     for (final (i, u) in list.indexed)
