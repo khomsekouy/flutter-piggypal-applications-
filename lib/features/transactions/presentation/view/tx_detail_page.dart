@@ -24,6 +24,7 @@ class TxDetailPage extends StatelessWidget {
     final pr = db.programOrNull(t.programId);
 
     return TFScreen(
+      pinnedHeader: true,
       header: TFBackBar(
         title: 'Transaction',
         onBack: nav.back,

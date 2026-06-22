@@ -36,6 +36,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   .toList();
 
         return TFScreen(
+          pinnedHeader: true,
           header: TFBackBar(title: 'Recent History', onBack: widget.nav.back),
           children: [
             DashboardSearchField(

@@ -30,13 +30,23 @@ class _CategoriesPageState extends State<CategoriesPage> {
             : allCats.where((x) => x.label.toLowerCase().contains(q)).toList();
 
         return TFScreen(
-          header: TFBackBar(title: 'Categories', onBack: widget.nav.back),
+          pinnedHeader: true,
+          // Back bar + search field stay pinned; the grid scrolls beneath.
+          header: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TFBackBar(title: 'Categories', onBack: widget.nav.back),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: DashboardSearchField(
+                  hint: 'Search categories',
+                  onChanged: (v) => setState(() => _query = v),
+                ),
+              ),
+            ],
+          ),
           children: [
-            DashboardSearchField(
-              hint: 'Search categories',
-              onChanged: (v) => setState(() => _query = v),
-            ),
-            const SizedBox(height: 16),
             if (cats.isEmpty)
               TFEmptyMessage('No categories match “$_query”.', topPadding: 40)
             else

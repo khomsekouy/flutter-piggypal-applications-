@@ -44,6 +44,7 @@ class ProfitLossPage extends StatelessWidget {
     final margin = ((net / db.totalIncome) * 100).round();
 
     return TFScreen(
+      pinnedHeader: true,
       header: TFBackBar(
         title: 'Profit & Loss',
         onBack: nav.back,

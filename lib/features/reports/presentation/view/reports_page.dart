@@ -31,20 +31,29 @@ class _ReportsPageState extends State<ReportsPage> {
     final top = topPrograms.take(4).toList();
 
     return TFScreen(
-      header: const TFAppBar(
-        eyebrow: 'Analytics',
-        title: 'Reports',
-        trailing: TFIconButton(icon: Icons.file_download_outlined),
+      pinnedHeader: true,
+      // Title + period toggle stay pinned; only the charts below scroll.
+      header: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const TFAppBar(
+            eyebrow: 'Analytics',
+            title: 'Reports',
+            trailing: TFIconButton(icon: Icons.file_download_outlined),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+            child: TFSegmented<String>(
+              value: _period,
+              options: const ['1M', '3M', '6M', 'YTD'],
+              labelOf: (s) => s,
+              onChanged: (s) => setState(() => _period = s),
+            ),
+          ),
+        ],
       ),
       children: [
-        TFSegmented<String>(
-          value: _period,
-          options: const ['1M', '3M', '6M', 'YTD'],
-          labelOf: (s) => s,
-          onChanged: (s) => setState(() => _period = s),
-        ),
-        const SizedBox(height: 14),
-
         // Net profit + bar pairs.
         TFCard(
           child: Column(
