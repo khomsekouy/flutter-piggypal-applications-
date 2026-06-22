@@ -20,6 +20,7 @@ class BudgetsPage extends StatelessWidget {
     final remaining = db.totalBudget - db.totalSpent;
 
     return TFScreen(
+      pinnedHeader: true,
       header: TFBackBar(
         title: 'Budgets',
         onBack: nav.back,

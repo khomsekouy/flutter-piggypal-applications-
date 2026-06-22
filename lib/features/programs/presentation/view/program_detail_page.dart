@@ -24,6 +24,7 @@ class ProgramDetailPage extends StatelessWidget {
     final txs = db.tx.where((t) => t.programId == p.id).toList();
 
     return TFScreen(
+      pinnedHeader: true,
       header: TFBackBar(
         title: 'Program',
         onBack: nav.back,

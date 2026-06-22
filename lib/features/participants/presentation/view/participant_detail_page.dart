@@ -26,6 +26,7 @@ class ParticipantDetailPage extends StatelessWidget {
     final pr = db.program(u.programId);
 
     return TFScreen(
+      pinnedHeader: true,
       header: TFBackBar(
         title: 'Participant',
         onBack: nav.back,

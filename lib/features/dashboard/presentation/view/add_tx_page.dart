@@ -62,17 +62,26 @@ class _AddTxPageState extends State<AddTxPage> {
     final canSave = amount > 0 && (!_isExpense || _cat != null);
 
     return TFScreen(
+      pinnedHeader: true,
       bottomPadding: 24,
-      header: TFBackBar(title: 'Add Transaction', onBack: widget.nav.back),
+      // Back bar + income/expense toggle stay pinned; the form fields scroll.
+      header: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TFBackBar(title: 'Add Transaction', onBack: widget.nav.back),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: TFSegmented<bool>(
+              value: _isExpense,
+              options: const [true, false],
+              labelOf: (e) => e ? 'Expense' : 'Income',
+              onChanged: (e) => setState(() => _isExpense = e),
+            ),
+          ),
+        ],
+      ),
       children: [
-        TFSegmented<bool>(
-          value: _isExpense,
-          options: const [true, false],
-          labelOf: (e) => e ? 'Expense' : 'Income',
-          onChanged: (e) => setState(() => _isExpense = e),
-        ),
-        const SizedBox(height: 20),
-
         const _Label('Amount'),
         const SizedBox(height: 9),
         _Field(

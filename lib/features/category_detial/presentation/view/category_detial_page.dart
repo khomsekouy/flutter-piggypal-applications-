@@ -30,6 +30,7 @@ class CategoryDetialPage extends StatelessWidget {
         }
         if (cat == null) {
           return TFScreen(
+            pinnedHeader: true,
             header: TFBackBar(title: label, onBack: nav.back),
             children: const [TFEmptyMessage('Category not found.')],
           );
@@ -42,6 +43,7 @@ class CategoryDetialPage extends StatelessWidget {
         final pct = cat.pct;
 
         return TFScreen(
+          pinnedHeader: true,
           header: TFBackBar(
             title: label,
             onBack: nav.back,
@@ -71,19 +73,26 @@ class CategoryDetialPage extends StatelessWidget {
                         child: Icon(cat.icon, size: 24, color: Colors.white),
                       ),
                       const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            label,
-                            style: TFText.sans(size: 18, color: c.text),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'May 2025',
-                            style: TFText.sans(size: 12.5, color: c.textMuted),
-                          ),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TFText.sans(size: 18, color: c.text),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'May 2025',
+                              style: TFText.sans(
+                                size: 12.5,
+                                color: c.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

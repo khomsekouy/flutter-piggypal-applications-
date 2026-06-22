@@ -72,6 +72,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   ? () => widget.nav.push(TFScreens.categories)
                   : null,
             ),
+            
             DashboardSearchField(
               hint: 'Search categories',
               onChanged: (v) => setState(() => _query = v),
