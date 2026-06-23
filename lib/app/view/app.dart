@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/theme/app_theme.dart';
-import 'package:flutter_piggypal_app/features/training_finance/training_finance_app.dart';
+import 'package:flutter_piggypal_app/features/splash/presentation/view/splash_page.dart';
 import 'package:flutter_piggypal_app/l10n/l10n.dart';
 
 class App extends StatelessWidget {
@@ -17,7 +17,8 @@ class App extends StatelessWidget {
       // The Training Finance module owns its own dark-fintech theme scope.
       // PiggyPal's original shell still lives at app/view/home_shell.dart —
       // swap it back in here to restore the savings experience.
-      home: const TrainingFinanceApp(),
+      // SplashPage shows a black launch screen, then routes into the module.
+      home: const SplashPage(),
     );
   }
 }

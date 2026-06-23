@@ -33,6 +33,21 @@ class BudgetStore {
     List.of(kRecentTx),
   );
 
+  /// Overall monthly spending cap, like a prepaid card balance. Expenses count
+  /// down against it; when [totalSpent] exceeds it the UI warns (no blocking).
+  final ValueNotifier<double> monthlyLimit = ValueNotifier(100);
+
+  /// Sum of spend across every category — the amount counted against the
+  /// [monthlyLimit] this month.
+  double get totalSpent => cats.value.fold(0, (s, c) => s + c.spent);
+
+  /// What's left on the monthly limit (may go negative when over budget).
+  double get limitRemaining => monthlyLimit.value - totalSpent;
+
+  /// Updates the monthly limit (clamped to a non-negative amount).
+  void setMonthlyLimit(double value) =>
+      monthlyLimit.value = value < 0 ? 0 : value;
+
   void add(BudgetCat cat) => cats.value = [...cats.value, cat];
 
   /// Records a transaction: prepends it to the history and, for an expense
