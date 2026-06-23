@@ -54,7 +54,11 @@ class _DashboardPageState extends State<DashboardPage> {
         final canViewAll = !searching && cats.length > _catPreviewCount;
 
         return TFScreen(
-          header: const _Header(month: 'May 2025'),
+          pinnedHeader: true,
+          header: _Header(
+            month: 'May 2025',
+            onSearch: (v) => setState(() => _query = v),
+          ),
           children: [
             // Hero balance card: headline spend, usage ring, budget split.
             _HeroBalance(
@@ -62,6 +66,21 @@ class _DashboardPageState extends State<DashboardPage> {
               budget: totalBudget,
               usedPct: usedPct,
               remaining: remaining,
+            ),
+
+            const SizedBox(height: 14),
+
+            // Overall monthly spending cap ("card balance").
+            ValueListenableBuilder<double>(
+              valueListenable: BudgetStore.instance.monthlyLimit,
+              builder: (context, limit, _) {
+                return MonthlyLimitCard(
+                  limit: limit,
+                  spent: totalSpent,
+                  onEdit: () =>
+                      showMonthlyLimitDialog(context, current: limit),
+                );
+              },
             ),
 
             // Categories.
@@ -72,11 +91,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   ? () => widget.nav.push(TFScreens.categories)
                   : null,
             ),
-            
-            DashboardSearchField(
-              hint: 'Search categories',
-              onChanged: (v) => setState(() => _query = v),
-            ),
+
             const SizedBox(height: 14),
             if (cats.isEmpty)
               TFEmptyMessage('No categories match “$_query”.', topPadding: 30)
@@ -134,56 +149,64 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-/// Top bar: overview eyebrow + month selector, with a trailing icon button.
+/// Top bar: overview eyebrow + month selector + a category search field.
 class _Header extends StatelessWidget {
-  const _Header({required this.month});
+  const _Header({required this.month, required this.onSearch});
 
   final String month;
+  final ValueChanged<String> onSearch;
 
   @override
   Widget build(BuildContext context) {
     final c = context.tfc;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'OVERVIEW',
-                  style: TFText.mono(
-                    size: 11,
-                    color: c.textDim,
-                    letterSpacing: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      month,
-                      style: TFText.sans(
-                        size: 23,
-                        weight: FontWeight.w700,
-                        color: c.text,
-                        letterSpacing: -0.5,
+                      'OVERVIEW',
+                      style: TFText.mono(
+                        size: 11,
+                        color: c.textDim,
+                        letterSpacing: 1.4,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      size: 22,
-                      color: c.textMuted,
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text(
+                          month,
+                          style: TFText.sans(
+                            size: 23,
+                            weight: FontWeight.w700,
+                            color: c.text,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 22,
+                          color: c.textMuted,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const TFIconButton(icon: Icons.notifications_none_rounded),
+            ],
           ),
-          const TFIconButton(icon: Icons.notifications_none_rounded),
+          const SizedBox(height: 14),
+          DashboardSearchField(hint: 'Search categories', onChanged: onSearch),
         ],
       ),
     );

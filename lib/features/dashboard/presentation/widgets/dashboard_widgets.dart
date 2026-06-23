@@ -19,6 +19,213 @@ String formatMoney(double n) {
   return '\$$buf.${parts[1]}';
 }
 
+/// "Card balance" style card for the overall monthly spending limit.
+///
+/// Shows what's left of the user's monthly cap (like a prepaid card balance),
+/// a usage bar, and a warning when spending goes over. Tapping the edit button
+/// opens [showMonthlyLimitDialog] to change the amount. Warn-only: going over
+/// never blocks adding expenses.
+class MonthlyLimitCard extends StatelessWidget {
+  const MonthlyLimitCard({
+    required this.limit,
+    required this.spent,
+    required this.onEdit,
+    super.key,
+  });
+
+  final double limit;
+  final double spent;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.tfc;
+    final remaining = limit - spent;
+    final over = spent > limit;
+    final pct = limit <= 0 ? 0 : ((spent / limit) * 100).round();
+    // Once 90%+ of the limit is used (but not yet over) we nudge with the warn
+    // tone; over the limit switches to the negative tone.
+    final near = !over && pct >= 90;
+    final barColor = over
+        ? c.neg
+        : (near ? c.warn : c.primary);
+
+    return TFCard(
+      radius: 22,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.account_balance_wallet_rounded,
+                  size: 18, color: c.textMuted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Monthly Limit',
+                  style: TFText.sans(size: 13, color: c.textMuted),
+                ),
+              ),
+              if (over) ...[
+                const TFPill(label: 'Over limit', tone: PillTone.neg),
+                const SizedBox(width: 8),
+              ],
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onEdit,
+                child: Icon(Icons.edit_rounded, size: 17, color: c.textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            over ? 'Over by ${formatMoney(-remaining)}' : 'Left to spend',
+            style: TFText.sans(
+              size: 11.5,
+              color: over ? c.neg : c.textDim,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            formatMoney(remaining < 0 ? 0 : remaining),
+            style: TFText.num(
+              size: 30,
+              color: over ? c.neg : c.text,
+              letterSpacing: -1,
+            ),
+          ),
+          const SizedBox(height: 14),
+          TFProgress(pct: pct, color: barColor, over: over),
+          const SizedBox(height: 9),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${formatMoney(spent)} spent',
+                style: TFText.sans(size: 11.5, color: c.textDim),
+              ),
+              Text(
+                'of ${formatMoney(limit)}',
+                style: TFText.sans(size: 11.5, color: c.textDim),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Prompts the user for a new monthly spending limit and persists it to the
+/// [BudgetStore]. No-op if dismissed or the input isn't a valid amount.
+Future<void> showMonthlyLimitDialog(
+  BuildContext context, {
+  required double current,
+}) async {
+  // The dialog mounts in the app-level overlay, above TFThemeScope, so capture
+  // the colours here (inside the scope) and pass them down.
+  final colors = context.tfc;
+  final value = await showDialog<double>(
+    context: context,
+    builder: (context) => _MonthlyLimitDialog(current: current, colors: colors),
+  );
+  if (value != null) BudgetStore.instance.setMonthlyLimit(value);
+}
+
+/// The dialog body for [showMonthlyLimitDialog]. Owns its own
+/// [TextEditingController] so it lives exactly as long as the dialog (disposing
+/// it in the caller raced the close animation and crashed).
+class _MonthlyLimitDialog extends StatefulWidget {
+  const _MonthlyLimitDialog({required this.current, required this.colors});
+
+  final double current;
+  final TFColors colors;
+
+  @override
+  State<_MonthlyLimitDialog> createState() => _MonthlyLimitDialogState();
+}
+
+class _MonthlyLimitDialogState extends State<_MonthlyLimitDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.current == 0 ? '' : widget.current.toStringAsFixed(0),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final parsed = double.tryParse(_controller.text.trim());
+    Navigator.of(context).pop(parsed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.colors;
+    return AlertDialog(
+      backgroundColor: c.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      title: Text(
+        'Monthly spending limit',
+        style: TFText.sans(size: 17, weight: FontWeight.w700, color: c.text),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set how much you can spend each month.',
+            style: TFText.sans(size: 13, color: c.textMuted),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            style: TFText.num(size: 22, color: c.text),
+            onSubmitted: (_) => _save(),
+            decoration: InputDecoration(
+              prefixText: r'$ ',
+              prefixStyle: TFText.num(size: 22, color: c.textMuted),
+              filled: true,
+              fillColor: c.surface2,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            'Cancel',
+            style: TFText.sans(size: 14, color: c.textMuted),
+          ),
+        ),
+        TextButton(
+          onPressed: _save,
+          child: Text(
+            'Save',
+            style: TFText.sans(
+              size: 14,
+              weight: FontWeight.w700,
+              color: c.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// The rounded search field used across the dashboard pages.
 class DashboardSearchField extends StatelessWidget {
   const DashboardSearchField({
