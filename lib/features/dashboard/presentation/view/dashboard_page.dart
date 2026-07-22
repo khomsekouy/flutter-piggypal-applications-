@@ -3,10 +3,12 @@ import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/dashboard/data/budget_store.dart';
 import 'package:flutter_piggypal_app/features/dashboard/presentation/widgets/dashboard_widgets.dart';
+import 'package:flutter_piggypal_app/features/languages/presentation/widgets/language_menu_button.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_app_bar.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_charts.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_widgets.dart';
+import 'package:flutter_piggypal_app/l10n/l10n.dart';
 
 /// The "Home" tab: monthly budget overview broken down by category.
 class DashboardPage extends StatefulWidget {
@@ -172,7 +174,7 @@ class _Header extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'OVERVIEW',
+                      context.l10n.homeOverview.toUpperCase(),
                       style: TFText.mono(
                         size: 11,
                         color: c.textDim,
@@ -202,11 +204,16 @@ class _Header extends StatelessWidget {
                   ],
                 ),
               ),
+              const LanguageMenuButton(),
+              const SizedBox(width: 10),
               const TFIconButton(icon: Icons.notifications_none_rounded),
             ],
           ),
           const SizedBox(height: 14),
-          DashboardSearchField(hint: 'Search categories', onChanged: onSearch),
+          DashboardSearchField(
+            hint: context.l10n.searchCategoriesHint,
+            onChanged: onSearch,
+          ),
         ],
       ),
     );

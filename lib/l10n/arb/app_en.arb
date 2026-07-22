@@ -3,5 +3,33 @@
     "counterAppBarTitle": "Counter",
     "@counterAppBarTitle": {
         "description": "Text shown in the AppBar of the Counter Page"
+    },
+    "homeOverview": "Overview",
+    "@homeOverview": {
+        "description": "Eyebrow label above the month on the Home header"
+    },
+    "searchCategoriesHint": "Search categories",
+    "@searchCategoriesHint": {
+        "description": "Placeholder for the Home category search field"
+    },
+    "languageTitle": "Language",
+    "@languageTitle": {
+        "description": "Title of the language chooser"
+    },
+    "languagePrompt": "Choose how the app is displayed.",
+    "@languagePrompt": {
+        "description": "Subtitle prompting the user to pick a language"
+    },
+    "continueAction": "Continue",
+    "@continueAction": {
+        "description": "Label for the confirm/continue button"
+    },
+    "languageEnglishName": "English",
+    "@languageEnglishName": {
+        "description": "Display name of the English language"
+    },
+    "languageKhmerName": "Khmer",
+    "@languageKhmerName": {
+        "description": "Display name of the Khmer language"
     }
 }
