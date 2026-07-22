@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
+import 'package:flutter_piggypal_app/features/account/presentation/view/account_page.dart';
+import 'package:flutter_piggypal_app/features/account/presentation/view/change_password_page.dart';
+import 'package:flutter_piggypal_app/features/account/presentation/view/edit_profile_page.dart';
 import 'package:flutter_piggypal_app/features/budgets/presentation/view/budgets_page.dart';
 import 'package:flutter_piggypal_app/features/category_detial/presentation/view/category_detial_page.dart';
 import 'package:flutter_piggypal_app/features/dashboard/presentation/view/add_tx_page.dart';
@@ -101,6 +104,9 @@ class _TFShellState extends State<TFShell> implements TFNav {
       ),
       TFScreens.categories => CategoriesPage(nav: this),
       TFScreens.history => HistoryPage(nav: this),
+      TFScreens.account => AccountPage(nav: this),
+      TFScreens.editProfile => EditProfilePage(nav: this),
+      TFScreens.changePassword => ChangePasswordPage(nav: this),
       _ => DashboardPage(nav: this),
     };
   }

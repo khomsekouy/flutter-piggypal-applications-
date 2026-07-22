@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
+import 'package:flutter_piggypal_app/features/account/data/profile_store.dart';
+import 'package:flutter_piggypal_app/features/languages/presentation/language_scope.dart';
+import 'package:flutter_piggypal_app/features/languages/presentation/widgets/language_menu_button.dart';
 import 'package:flutter_piggypal_app/features/training_finance/data/tf_mock_data.dart';
 import 'package:flutter_piggypal_app/features/training_finance/data/tf_models.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
@@ -8,6 +11,7 @@ import 'package:flutter_piggypal_app/features/training_finance/presentation/widg
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_rows.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_segmented.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_widgets.dart';
+import 'package:flutter_piggypal_app/l10n/l10n.dart';
 
 /// The "More" tab: module shortcuts, appearance tweaks, settings.
 class MorePage extends StatelessWidget {
@@ -68,38 +72,36 @@ class MorePage extends StatelessWidget {
     ];
 
     return TFScreen(
-      header: TFAppBar(eyebrow: db.org.name, title: 'More'),
+      header: TFAppBar(eyebrow: db.org.name, title: 'ME-INFO'),
       children: [
-        for (final it in items) ...[
-          TFCard(
-            padding: const EdgeInsets.all(11),
-            radius: 18,
-            onTap: it.onTap,
+        // Account summary — taps through to the profile screen.
+        ValueListenableBuilder<Profile>(
+          valueListenable: ProfileStore.instance.profile,
+          builder: (context, p, _) => TFCard(
+            padding: const EdgeInsets.all(13),
+            onTap: () => nav.push(TFScreens.account),
             child: Row(
               children: [
-                TFGlyphBadge(
-                  size: 42,
-                  radius: 13,
-                  hue: it.hue,
-                  child: Icon(it.icon),
-                ),
-                const SizedBox(width: 13),
+                TFAvatar(name: p.name, hue: p.hue, size: 52),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        it.label,
+                        p.name,
                         style: TFText.sans(
-                          size: 14.5,
+                          size: 16,
                           weight: FontWeight.w700,
                           color: c.text,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        it.sub,
+                        p.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TFText.sans(
                           size: 12.5,
                           weight: FontWeight.w500,
@@ -114,8 +116,38 @@ class MorePage extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 10),
-        ],
+        ),
+        const SizedBox(height: 18),
+
+        // Management shortcuts, grouped into one settings-style section.
+        const TFSectionLabel(title: 'Manage'),
+        TFCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          child: Column(
+            children: [
+              for (final (i, it) in items.indexed)
+                TFRow(
+                  first: i == 0,
+                  onTap: it.onTap,
+                  child: Row(
+                    children: [
+                      TFGlyphBadge(
+                        size: 38,
+                        radius: 12,
+                        hue: it.hue,
+                        child: Icon(it.icon, size: 18),
+                      ),
+                      const SizedBox(width: 13),
+                      Expanded(
+                        child: TFRowMain(title: it.label, subtitle: it.sub),
+                      ),
+                      Icon(Icons.chevron_right, size: 17, color: c.textMuted),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
 
         // Appearance tweaks (live re-tint of the whole module).
         const TFSectionLabel(title: 'Appearance'),
@@ -185,6 +217,60 @@ class MorePage extends StatelessWidget {
               ),
             ],
           ),
+        ),
+
+        // Language chooser (re-localizes the whole app on pick).
+        TFSectionLabel(title: context.l10n.languageTitle),
+        Builder(
+          builder: (context) {
+            final lang = LanguageScope.of(context).language;
+            return TFCard(
+              padding: const EdgeInsets.all(11),
+              radius: 18,
+              onTap: () => showLanguageSheet(context),
+              child: Row(
+                children: [
+                  TFGlyphBadge(
+                    size: 42,
+                    radius: 13,
+                    hue: lang.hue,
+                    child: Text(
+                      lang.flag,
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  ),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          lang.native,
+                          style: TFText.sans(
+                            size: 14.5,
+                            weight: FontWeight.w700,
+                            color: c.text,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          localizedLanguageName(context, lang),
+                          style: TFText.sans(
+                            size: 12.5,
+                            weight: FontWeight.w500,
+                            color: c.textMuted,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, size: 18, color: c.textMuted),
+                ],
+              ),
+            );
+          },
         ),
 
         // Settings list.

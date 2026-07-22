@@ -3,5 +3,12 @@
     "counterAppBarTitle": "Contador",
     "@counterAppBarTitle": {
         "description": "Texto mostrado en la AppBar de la página del contador"
-    }
+    },
+    "homeOverview": "Resumen",
+    "searchCategoriesHint": "Buscar categorías",
+    "languageTitle": "Idioma",
+    "languagePrompt": "Elige cómo se muestra la aplicación.",
+    "continueAction": "Continuar",
+    "languageEnglishName": "Inglés",
+    "languageKhmerName": "Jemer"
 }

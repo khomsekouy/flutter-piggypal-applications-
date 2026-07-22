@@ -170,9 +170,17 @@ abstract class TFThemeController {
 /// Provides the active [TFTheme] to the subtree and exposes mutators so the
 /// More → Appearance controls can re-tint the whole module live.
 class TFThemeScope extends StatefulWidget {
-  const TFThemeScope({required this.child, super.key});
+  const TFThemeScope({
+    required this.child,
+    this.seed,
+    super.key,
+  });
 
   final Widget child;
+
+  /// Optional starting theme. Use it to re-provide the active theme below an
+  /// overlay (e.g. a modal sheet) that sits above the original scope.
+  final TFTheme? seed;
 
   static TFThemeController of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<_TFInherited>();
@@ -190,9 +198,9 @@ class TFThemeScope extends StatefulWidget {
 
 class _TFThemeScopeState extends State<TFThemeScope>
     implements TFThemeController {
-  Color _accent = TFTheme.defaultAccent;
-  TFMode _mode = TFMode.dark;
-  TFDensity _density = TFDensity.regular;
+  late Color _accent = widget.seed?.accent ?? TFTheme.defaultAccent;
+  late TFMode _mode = widget.seed?.mode ?? TFMode.dark;
+  late TFDensity _density = widget.seed?.density ?? TFDensity.regular;
 
   TFTheme get theme => TFTheme.from(_accent, _mode, _density);
 
