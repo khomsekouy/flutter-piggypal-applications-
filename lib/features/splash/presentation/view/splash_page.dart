@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
-import 'package:flutter_piggypal_app/features/training_finance/training_finance_app.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/view/sign_in_page.dart';
 
 /// Black-background launch screen shown while the app warms up.
 ///
-/// Fades the app mark in, holds briefly, then routes into the main
-/// [TrainingFinanceApp]. Keeps its own black scaffold + light status-bar
+/// Fades the app mark in, holds briefly, then routes into the
+/// [SignInPage]. Keeps its own black scaffold + light status-bar
 /// treatment so the transition into the dark-fintech module is seamless.
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -47,7 +47,7 @@ class _SplashPageState extends State<SplashPage>
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 450),
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const TrainingFinanceApp(),
+            const SignInPage(),
         transitionsBuilder:
             (context, animation, secondaryAnimation, child) =>
                 FadeTransition(opacity: animation, child: child),
