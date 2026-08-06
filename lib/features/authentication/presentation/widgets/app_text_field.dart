@@ -11,6 +11,10 @@ class AppTextField extends StatefulWidget {
     this.suffix,
     this.obscureText = false,
     this.keyboardType,
+    this.errorText,
+    this.focusNode,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   final String label;
@@ -21,12 +25,25 @@ class AppTextField extends StatefulWidget {
   final bool obscureText;
   final TextInputType? keyboardType;
 
+  /// Validation message shown under the field. When non-null the border
+  /// turns red, so the user is told *why* the form won't submit.
+  final String? errorText;
+
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+
   @override
   State<AppTextField> createState() => _AppTextFieldState();
 }
 
 class _AppTextFieldState extends State<AppTextField> {
   bool _focused = false;
+
+  Color get _borderColor {
+    if (widget.errorText != null) return AppColors.error;
+    return _focused ? AppColors.primaryGreen : AppColors.surfaceBorder;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,14 +66,15 @@ class _AppTextFieldState extends State<AppTextField> {
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: _focused
-                    ? AppColors.primaryGreen
-                    : AppColors.surfaceBorder,
-                width: _focused ? 1.5 : 1,
+                color: _borderColor,
+                width: _focused || widget.errorText != null ? 1.5 : 1,
               ),
             ),
             child: TextField(
               controller: widget.controller,
+              focusNode: widget.focusNode,
+              textInputAction: widget.textInputAction,
+              onSubmitted: widget.onSubmitted,
               obscureText: widget.obscureText,
               keyboardType: widget.keyboardType,
               cursorColor: AppColors.primaryGreen,
@@ -85,6 +103,13 @@ class _AppTextFieldState extends State<AppTextField> {
             ),
           ),
         ),
+        if (widget.errorText case final error?) ...[
+          const SizedBox(height: 6),
+          Text(
+            error,
+            style: const TextStyle(color: AppColors.error, fontSize: 12),
+          ),
+        ],
       ],
     );
   }

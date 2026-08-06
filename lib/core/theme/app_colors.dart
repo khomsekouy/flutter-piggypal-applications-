@@ -32,6 +32,9 @@ abstract final class AppColors {
   /// Secondary accent used for coins / highlights.
   static const accentGold = Color(0xFFF5B301);
 
+  /// Validation / failure text and borders — mirrors `TFColors.baseNeg`.
+  static const error = Color(0xFFFF6B6B);
+
   /// Gradient fill for primary CTA buttons (Sign In, etc.).
   static const primaryButtonGradient = LinearGradient(
     colors: [Color(0xFF3AD17F), Color(0xFF23A866)],

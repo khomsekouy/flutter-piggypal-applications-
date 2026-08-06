@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/account/data/profile_store.dart';
@@ -8,10 +9,12 @@ import 'package:flutter_piggypal_app/features/training_finance/data/tf_mock_data
 import 'package:flutter_piggypal_app/features/training_finance/data/tf_models.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_app_bar.dart';
+import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_buttons.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_rows.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_segmented.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_widgets.dart';
 import 'package:flutter_piggypal_app/l10n/l10n.dart';
+import 'package:go_router/go_router.dart';
 
 /// The "More" tab: module shortcuts, appearance tweaks, settings.
 class MorePage extends StatelessWidget {
@@ -72,6 +75,8 @@ class MorePage extends StatelessWidget {
     ];
 
     return TFScreen(
+      // Clears the always-visible bottom tab bar so Sign Out isn't hidden.
+      bottomPadding: 120,
       header: TFAppBar(eyebrow: db.org.name, title: 'ME-INFO'),
       children: [
         // Account summary — taps through to the profile screen.
@@ -302,6 +307,12 @@ class MorePage extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 22),
+        TFButton.ghost(
+          label: 'Sign Out',
+          icon: Icons.logout,
+          onTap: () => _confirmSignOut(context),
+        ),
         const SizedBox(height: 18),
         Center(
           child: Text(
@@ -316,6 +327,72 @@ class MorePage extends StatelessWidget {
       ],
     );
   }
+}
+
+Future<void> _confirmSignOut(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.55),
+    builder: (dialogContext) => TFThemeScope(
+      // The dialog mounts on the app-level overlay, above the module's own
+      // scope, so re-provide the active theme.
+      seed: context.tf,
+      child: Builder(
+        builder: (context) {
+          final c = context.tfc;
+          return Dialog(
+            backgroundColor: c.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: BorderSide(color: c.line),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Sign out?',
+                    style: TFText.sans(
+                      size: 18,
+                      weight: FontWeight.w700,
+                      color: c.text,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "You'll need to sign in again to access your account.",
+                    style: TFText.sans(size: 13.5, color: c.textMuted),
+                  ),
+                  const SizedBox(height: 22),
+                  TFButton.primary(
+                    label: 'Sign Out',
+                    icon: Icons.logout,
+                    onTap: () => Navigator.of(dialogContext).pop(true),
+                  ),
+                  const SizedBox(height: 10),
+                  TFButton.ghost(
+                    label: 'Cancel',
+                    onTap: () => Navigator.of(dialogContext).pop(false),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+  if (!(ok ?? false)) return;
+  if (!context.mounted) return;
+  // TODO(auth): clear the persisted session before leaving.
+  //
+  // `goNamed`, not `nav.back()` — signing out has to leave the module
+  // entirely. TFNav only pops within the shell, which would drop the user back
+  // on the previous tab still signed in. `go` also replaces the route stack, so
+  // hardware-back cannot re-enter the module.
+  context.goNamed(AppRoutes.signIn);
 }
 
 class _ModuleItem {

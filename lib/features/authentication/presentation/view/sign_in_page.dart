@@ -1,12 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
-import 'package:flutter_piggypal_app/features/authentication/presentation/view/create_account_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/app_text_field.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/hero_illustration.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/phone_number_field.dart';
+import 'package:go_router/go_router.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
@@ -19,26 +22,59 @@ class _SignInPageState extends State<SignInPage> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  final _phoneFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+
+  /// Whether the number satisfies the selected country's length rule.
+  bool _phoneValid = false;
+
   bool _obscurePassword = true;
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _phoneController.addListener(_onFieldChanged);
+    _passwordController.addListener(_onFieldChanged);
+  }
+
+  @override
   void dispose() {
-    _phoneController.dispose();
-    _passwordController.dispose();
+    _phoneController
+      ..removeListener(_onFieldChanged)
+      ..dispose();
+    _passwordController
+      ..removeListener(_onFieldChanged)
+      ..dispose();
+    _phoneFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
+  void _onFieldChanged() => setState(() {});
+
+  bool get _canSubmit =>
+      _phoneValid && _passwordController.text.isNotEmpty && !_isLoading;
+
   Future<void> _handleSignIn() async {
+    if (!_canSubmit) return;
+    FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
+    // TODO(auth): authenticate through the repository and only continue on
+    // success; today any filled-in credentials are accepted.
     await Future<void>.delayed(const Duration(seconds: 1));
-    if (mounted) setState(() => _isLoading = false);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    // Replaces the auth stack so back from home cannot return to sign-in.
+    context.goNamed(AppRoutes.home);
   }
 
   void _goToCreateAccount() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const CreateAccountPage()),
-    );
+    unawaited(context.pushNamed(AppRoutes.createAccount));
+  }
+
+  void _goToForgotPassword() {
+    unawaited(context.pushNamed(AppRoutes.forgotPassword));
   }
 
   @override
@@ -52,7 +88,9 @@ class _SignInPageState extends State<SignInPage> {
         backgroundColor: AppColors.background,
         body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            // Taller top inset than the other auth screens: they push the
+            // wordmark down with a back-button row, and sign-in has none.
+            padding: const EdgeInsets.fromLTRB(24, 56, 24, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -91,7 +129,14 @@ class _SignInPageState extends State<SignInPage> {
                   style: TextStyle(color: AppColors.textSecondary, height: 1.4),
                 ),
                 const SizedBox(height: 28),
-                PhoneNumberField(controller: _phoneController),
+                PhoneNumberField(
+                  controller: _phoneController,
+                  focusNode: _phoneFocus,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) => _passwordFocus.requestFocus(),
+                  onValidChanged: (isValid) =>
+                      setState(() => _phoneValid = isValid),
+                ),
                 const SizedBox(height: 18),
                 AppTextField(
                   label: 'Password',
@@ -99,6 +144,9 @@ class _SignInPageState extends State<SignInPage> {
                   hintText: '••••••••',
                   prefixIcon: Icons.lock_outline,
                   obscureText: _obscurePassword,
+                  focusNode: _passwordFocus,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _handleSignIn(),
                   suffix: IconButton(
                     icon: Icon(
                       _obscurePassword
@@ -114,7 +162,7 @@ class _SignInPageState extends State<SignInPage> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {},
+                    onPressed: _goToForgotPassword,
                     child: const Text(
                       'Forgot Password?',
                       style: TextStyle(color: AppColors.primaryGreen),
@@ -126,7 +174,7 @@ class _SignInPageState extends State<SignInPage> {
                   label: 'Sign In',
                   icon: Icons.lock_outline,
                   isLoading: _isLoading,
-                  onPressed: _handleSignIn,
+                  onPressed: _canSubmit ? _handleSignIn : null,
                 ),
                 const SizedBox(height: 20),
                 const Row(
