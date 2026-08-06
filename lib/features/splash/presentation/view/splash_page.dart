@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
-import 'package:flutter_piggypal_app/features/authentication/presentation/view/sign_in_page.dart';
+import 'package:go_router/go_router.dart';
 
 /// Black-background launch screen shown while the app warms up.
 ///
 /// Fades the app mark in, holds briefly, then routes into the
-/// [SignInPage]. Keeps its own black scaffold + light status-bar
+/// sign-in screen. Keeps its own black scaffold + light status-bar
 /// treatment so the transition into the dark-fintech module is seamless.
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -43,16 +44,8 @@ class _SplashPageState extends State<SplashPage>
   Future<void> _scheduleNext() async {
     await Future<void>.delayed(SplashPage._hold);
     if (!mounted) return;
-    await Navigator.of(context).pushReplacement(
-      PageRouteBuilder<void>(
-        transitionDuration: const Duration(milliseconds: 450),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const SignInPage(),
-        transitionsBuilder:
-            (context, animation, secondaryAnimation, child) =>
-                FadeTransition(opacity: animation, child: child),
-      ),
-    );
+    // Replace the splash route so back doesn't return here.
+    context.goNamed(AppRoutes.signIn);
   }
 
   @override

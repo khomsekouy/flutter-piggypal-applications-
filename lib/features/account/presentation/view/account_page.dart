@@ -25,8 +25,6 @@ class AccountPage extends StatelessWidget {
       valueListenable: ProfileStore.instance.profile,
       builder: (context, p, _) {
         return TFScreen(
-          // Clears the always-visible bottom tab bar so Sign Out isn't hidden.
-          bottomPadding: 120,
           header: TFBackBar(
             title: 'Account',
             onBack: nav.back,
@@ -150,13 +148,6 @@ class AccountPage extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 22),
-
-            TFButton.ghost(
-              label: 'Sign Out',
-              icon: Icons.logout,
-              onTap: () => _confirmSignOut(context),
-            ),
           ],
         );
       },
@@ -171,61 +162,6 @@ class AccountPage extends StatelessWidget {
       );
   }
 
-  Future<void> _confirmSignOut(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.55),
-      builder: (dialogContext) => TFThemeScope(
-        seed: context.tf,
-        child: Builder(
-          builder: (context) {
-            final c = context.tfc;
-            return Dialog(
-              backgroundColor: c.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(22),
-                side: BorderSide(color: c.line),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(22),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Sign out?',
-                      style: TFText.sans(
-                        size: 18,
-                        weight: FontWeight.w700,
-                        color: c.text,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "You'll need to sign in again to access your account.",
-                      style: TFText.sans(size: 13.5, color: c.textMuted),
-                    ),
-                    const SizedBox(height: 22),
-                    TFButton.primary(
-                      label: 'Sign Out',
-                      icon: Icons.logout,
-                      onTap: () => Navigator.of(dialogContext).pop(true),
-                    ),
-                    const SizedBox(height: 10),
-                    TFButton.ghost(
-                      label: 'Cancel',
-                      onTap: () => Navigator.of(dialogContext).pop(false),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-    if (ok ?? false) nav.back();
-  }
 }
 
 /// A read-only label-over-value row with a leading icon.

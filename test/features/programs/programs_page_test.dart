@@ -1,11 +1,12 @@
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_piggypal_app/app/app.dart';
 import 'package:flutter_piggypal_app/core/database/app_database.dart';
 import 'package:flutter_piggypal_app/core/di/injection_container.dart';
 import 'package:flutter_piggypal_app/features/programs/presentation/view/programs_page.dart';
 import 'package:flutter_piggypal_app/features/programs/presentation/widgets/program_card.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../helpers/helpers.dart';
 
 void main() {
   setUp(() async {
@@ -24,8 +25,7 @@ void main() {
 
   testWidgets('Programs tab renders Drift-seeded programs via the bloc',
       (tester) async {
-    await tester.pumpWidget(const App());
-    await tester.pumpAndSettle();
+    await tester.pumpAppToHome();
 
     // Navigate to the Programs tab (bottom-nav label).
     await tester.tap(find.text('Programs').first);
