@@ -33,6 +33,7 @@ abstract final class TFScreens {
   static const categories = 'categories';
   static const history = 'history';
   static const account = 'account';
+  static const notifications = 'notifications';
   static const editProfile = 'editprofile';
   static const changePassword = 'changepassword';
 }

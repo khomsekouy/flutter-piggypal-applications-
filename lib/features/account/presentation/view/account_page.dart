@@ -143,7 +143,7 @@ class AccountPage extends StatelessWidget {
                   _ActionRow(
                     icon: Icons.notifications_outlined,
                     label: 'Notifications',
-                    onTap: () => _soon(context),
+                    onTap: () => nav.push(TFScreens.notifications),
                   ),
                 ],
               ),

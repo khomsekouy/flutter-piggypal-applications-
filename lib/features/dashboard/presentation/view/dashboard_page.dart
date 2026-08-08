@@ -4,6 +4,7 @@ import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/dashboard/data/budget_store.dart';
 import 'package:flutter_piggypal_app/features/dashboard/presentation/widgets/dashboard_widgets.dart';
 import 'package:flutter_piggypal_app/features/languages/presentation/widgets/language_menu_button.dart';
+import 'package:flutter_piggypal_app/features/notification/presentation/widgets/notification_bell.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_app_bar.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_charts.dart';
@@ -60,6 +61,7 @@ class _DashboardPageState extends State<DashboardPage> {
           header: _Header(
             month: 'May 2025',
             onSearch: (v) => setState(() => _query = v),
+            onNotifications: () => widget.nav.push(TFScreens.notifications),
           ),
           children: [
             // Hero balance card: headline spend, usage ring, budget split.
@@ -153,10 +155,15 @@ class _DashboardPageState extends State<DashboardPage> {
 
 /// Top bar: overview eyebrow + month selector + a category search field.
 class _Header extends StatelessWidget {
-  const _Header({required this.month, required this.onSearch});
+  const _Header({
+    required this.month,
+    required this.onSearch,
+    required this.onNotifications,
+  });
 
   final String month;
   final ValueChanged<String> onSearch;
+  final VoidCallback onNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -206,7 +213,7 @@ class _Header extends StatelessWidget {
               ),
               const LanguageMenuButton(),
               const SizedBox(width: 10),
-              const TFIconButton(icon: Icons.notifications_none_rounded),
+              NotificationBell(onTap: onNotifications),
             ],
           ),
           const SizedBox(height: 14),
