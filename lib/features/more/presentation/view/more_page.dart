@@ -5,6 +5,7 @@ import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/account/data/profile_store.dart';
 import 'package:flutter_piggypal_app/features/languages/presentation/language_scope.dart';
 import 'package:flutter_piggypal_app/features/languages/presentation/widgets/language_menu_button.dart';
+import 'package:flutter_piggypal_app/features/notification/presentation/widgets/notification_bell.dart';
 import 'package:flutter_piggypal_app/features/training_finance/data/tf_mock_data.dart';
 import 'package:flutter_piggypal_app/features/training_finance/data/tf_models.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
@@ -284,22 +285,54 @@ class MorePage extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Column(
             children: [
-              for (final (i, s) in const [
-                ('Organization profile', Icons.grid_view_rounded),
-                ('Team & permissions', Icons.people_outline),
-                ('Tax & currency', Icons.sell_outlined),
-                ('Notifications', Icons.notifications_outlined),
+              for (final (i, s) in <
+                ({
+                  String label,
+                  IconData icon,
+                  VoidCallback? onTap,
+                  bool unreadBadge,
+                })
+              >[
+                (
+                  label: 'Organization profile',
+                  icon: Icons.grid_view_rounded,
+                  onTap: null,
+                  unreadBadge: false,
+                ),
+                (
+                  label: 'Team & permissions',
+                  icon: Icons.people_outline,
+                  onTap: null,
+                  unreadBadge: false,
+                ),
+                (
+                  label: 'Tax & currency',
+                  icon: Icons.sell_outlined,
+                  onTap: null,
+                  unreadBadge: false,
+                ),
+                (
+                  label: 'Notifications',
+                  icon: Icons.notifications_outlined,
+                  onTap: () => nav.push(TFScreens.notifications),
+                  unreadBadge: true,
+                ),
               ].indexed)
                 TFRow(
                   first: i == 0,
+                  onTap: s.onTap,
                   child: Row(
                     children: [
                       SizedBox(
                         width: 24,
-                        child: Icon(s.$2, size: 18, color: c.textMuted),
+                        child: Icon(s.icon, size: 18, color: c.textMuted),
                       ),
                       const SizedBox(width: 13),
-                      Expanded(child: TFRowMain(title: s.$1)),
+                      Expanded(child: TFRowMain(title: s.label)),
+                      if (s.unreadBadge) ...[
+                        const NotificationUnreadPill(),
+                        const SizedBox(width: 8),
+                      ],
                       Icon(Icons.chevron_right, size: 17, color: c.textMuted),
                     ],
                   ),

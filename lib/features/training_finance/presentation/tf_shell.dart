@@ -11,6 +11,7 @@ import 'package:flutter_piggypal_app/features/dashboard/presentation/view/catego
 import 'package:flutter_piggypal_app/features/dashboard/presentation/view/dashboard_page.dart';
 import 'package:flutter_piggypal_app/features/dashboard/presentation/view/history_page.dart';
 import 'package:flutter_piggypal_app/features/more/presentation/view/more_page.dart';
+import 'package:flutter_piggypal_app/features/notification/presentation/view/notification_page.dart';
 import 'package:flutter_piggypal_app/features/participants/presentation/view/participant_detail_page.dart';
 import 'package:flutter_piggypal_app/features/participants/presentation/view/participants_page.dart';
 import 'package:flutter_piggypal_app/features/programs/presentation/view/program_detail_page.dart';
@@ -105,6 +106,7 @@ class _TFShellState extends State<TFShell> implements TFNav {
       TFScreens.categories => CategoriesPage(nav: this),
       TFScreens.history => HistoryPage(nav: this),
       TFScreens.account => AccountPage(nav: this),
+      TFScreens.notifications => NotificationPage(nav: this),
       TFScreens.editProfile => EditProfilePage(nav: this),
       TFScreens.changePassword => ChangePasswordPage(nav: this),
       _ => DashboardPage(nav: this),
