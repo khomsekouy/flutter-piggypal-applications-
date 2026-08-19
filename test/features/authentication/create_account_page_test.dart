@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/create_account_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../helpers/helpers.dart';
 
@@ -176,6 +178,58 @@ void main() {
         find.text('Numbers only — letters and symbols are ignored.'),
         findsNothing,
       );
+    });
+
+    testWidgets('the CTA moves on to step two rather than submitting', (
+      tester,
+    ) async {
+      await pumpPage(tester);
+
+      expect(find.text('Step 1 of 2'), findsOneWidget);
+      expect(find.text('Next'), findsOneWidget);
+      // Creating the account is step two's job now.
+      expect(find.text('Create Account'), findsOneWidget); // the title only
+      expect(
+        find.widgetWithText(GradientButton, 'Create Account'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('hands the number and name to the photo step', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(600, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      Uri? pushed;
+      final router = GoRouter(
+        initialLocation: AppRoutes.createAccountPath,
+        routes: [
+          GoRoute(
+            path: AppRoutes.createAccountPath,
+            name: AppRoutes.createAccount,
+            builder: (context, state) => const CreateAccountPage(),
+          ),
+          GoRoute(
+            path: AppRoutes.profilePhotoPath,
+            name: AppRoutes.profilePhoto,
+            builder: (context, state) {
+              pushed = state.uri;
+              return const Scaffold(body: Text('photo step'));
+            },
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      await fillValidForm(tester);
+      await tester.tap(find.byType(Checkbox));
+      await tester.pump();
+      await tester.tap(find.byType(GradientButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('photo step'), findsOneWidget);
+      expect(pushed?.queryParameters['phone'], '+855 12345678');
+      expect(pushed?.queryParameters['name'], 'Dara Sok');
     });
 
     testWidgets('offers a route back to sign in', (tester) async {

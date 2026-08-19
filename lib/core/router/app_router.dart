@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/create_account_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/forgot_password_page.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/view/profile_photo_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/reset_password_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/sign_in_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/verify_number_page.dart';
@@ -40,6 +41,14 @@ abstract final class AppRouter {
         path: AppRoutes.createAccountPath,
         name: AppRoutes.createAccount,
         builder: (context, state) => const CreateAccountPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.profilePhotoPath,
+        name: AppRoutes.profilePhoto,
+        builder: (context, state) => ProfilePhotoPage(
+          phoneNumber: state.uri.queryParameters['phone'] ?? '',
+          fullName: state.uri.queryParameters['name'] ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.verifyNumberPath,
