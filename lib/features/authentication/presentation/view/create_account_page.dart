@@ -8,6 +8,7 @@ import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/utils/password_rules.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/app_text_field.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_step_indicator.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/hero_illustration.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/phone_number_field.dart';
@@ -41,7 +42,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _agreedToTerms = false;
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -101,20 +101,18 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       ) &&
       _agreedToTerms;
 
-  Future<void> _handleCreateAccount() async {
-    if (!_canSubmit || _isLoading) return;
+  /// Hands the collected details to step two (the optional profile photo),
+  /// which is where the account is actually created. Nothing is sent yet, so
+  /// this is a plain push rather than an awaited request.
+  void _handleNext() {
+    if (!_canSubmit) return;
     FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
-    // TODO(auth): replace with the real sign-up call once the repository is
-    // wired; today this only simulates the round trip.
-    await Future<void>.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
     unawaited(
       context.pushNamed(
-        AppRoutes.verifyNumber,
+        AppRoutes.profilePhoto,
         queryParameters: {
           'phone': '${PhoneNumberField.dialCode} $_digits',
+          'name': _nameController.text.trim(),
         },
       ),
     );
@@ -215,6 +213,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                     height: 1.4,
                   ),
                 ),
+                const SizedBox(height: 20),
+                const AuthStepIndicator(step: 1, totalSteps: 2),
                 const SizedBox(height: 24),
                 AppTextField(
                   label: 'Full name',
@@ -267,7 +267,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                   errorText: _confirmError,
                   focusNode: _confirmFocus,
                   textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _handleCreateAccount(),
+                  onSubmitted: (_) => _handleNext(),
                   suffix: IconButton(
                     icon: Icon(
                       _obscureConfirm
@@ -332,10 +332,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 ),
                 const SizedBox(height: 24),
                 GradientButton(
-                  label: 'Create Account',
-                  icon: Icons.person_add_alt_1_outlined,
-                  isLoading: _isLoading,
-                  onPressed: _canSubmit ? _handleCreateAccount : null,
+                  label: 'Next',
+                  icon: Icons.arrow_forward_rounded,
+                  isLoading: false,
+                  onPressed: _canSubmit ? _handleNext : null,
                 ),
                 const SizedBox(height: 20),
                 Center(

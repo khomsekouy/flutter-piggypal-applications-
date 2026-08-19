@@ -73,5 +73,9 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>SaveNest uses the camera so you can take a profile photo.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SaveNest needs access to your photos so you can choose a profile picture.</string>
 </dict>
 </plist>

@@ -23,6 +23,12 @@ abstract final class AppRoutes {
   static const createAccount = 'create-account';
   static const createAccountPath = '/create-account';
 
+  /// Second step of sign-up: the optional profile photo. Expects the `phone`
+  /// query parameter from step one, plus an optional `name` used for the
+  /// initials placeholder.
+  static const profilePhoto = 'profile-photo';
+  static const profilePhotoPath = '/profile-photo';
+
   /// Phone-number verification. Expects a `phone` query parameter, plus an
   /// optional `purpose` (`sign-up`, the default, or `password-reset`) that
   /// decides where a successful verification lands.
