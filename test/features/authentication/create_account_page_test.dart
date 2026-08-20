@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/models/sign_up_draft.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/create_account_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -199,7 +200,7 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(600, 1600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      Uri? pushed;
+      SignUpDraft? pushed;
       final router = GoRouter(
         initialLocation: AppRoutes.createAccountPath,
         routes: [
@@ -212,7 +213,7 @@ void main() {
             path: AppRoutes.profilePhotoPath,
             name: AppRoutes.profilePhoto,
             builder: (context, state) {
-              pushed = state.uri;
+              pushed = state.extra as SignUpDraft?;
               return const Scaffold(body: Text('photo step'));
             },
           ),
@@ -228,8 +229,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('photo step'), findsOneWidget);
-      expect(pushed?.queryParameters['phone'], '+855 12345678');
-      expect(pushed?.queryParameters['name'], 'Dara Sok');
+      // The dialling code and the national number travel apart, which is how
+      // `POST /auth/register` wants them — and the password never touches the
+      // URL.
+      expect(pushed?.countryCode, '+855');
+      expect(pushed?.phone, '12345678');
+      expect(pushed?.name, 'Dara Sok');
+      expect(pushed?.password, isNotEmpty);
     });
 
     testWidgets('offers a route back to sign in', (tester) async {

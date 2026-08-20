@@ -27,3 +27,34 @@ class NotFoundFailure extends Failure {
 class ValidationFailure extends Failure {
   const ValidationFailure(super.message);
 }
+
+/// The API answered with an error status.
+class ServerFailure extends Failure {
+  const ServerFailure([
+    super.message = 'The server could not complete that request.',
+    this.statusCode,
+  ]);
+
+  /// HTTP status behind the failure, when there was one.
+  final int? statusCode;
+
+  @override
+  List<Object?> get props => [message, statusCode];
+}
+
+/// The request never reached the API.
+class NetworkFailure extends Failure {
+  const NetworkFailure([
+    super.message = 'Could not reach the server. Check your connection.',
+  ]);
+}
+
+/// The caller has no valid session — sign in again.
+class AuthFailure extends Failure {
+  const AuthFailure([super.message = 'Your session has expired.']);
+}
+
+/// The request was cancelled by the caller; usually nothing to show.
+class CancelledFailure extends Failure {
+  const CancelledFailure([super.message = 'Request cancelled.']);
+}

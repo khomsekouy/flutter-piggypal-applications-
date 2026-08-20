@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/models/sign_up_draft.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/profile_photo_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/profile_photo_picker.dart';
@@ -36,7 +37,12 @@ void main() {
       );
     }
 
-    setUp(() => lastSource = null);
+    setUp(() async {
+      lastSource = null;
+      await setUpDependencies();
+    });
+
+    tearDown(tearDownDependencies);
 
     Future<void> pumpPage(
       WidgetTester tester, {
@@ -47,8 +53,12 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpApp(
         ProfilePhotoPage(
-          phoneNumber: '+855 12345678',
-          fullName: name,
+          draft: SignUpDraft(
+            countryCode: '+855',
+            phone: '12345678',
+            password: 'supersecret',
+            name: name,
+          ),
           pickImage: pickImage,
         ),
       );

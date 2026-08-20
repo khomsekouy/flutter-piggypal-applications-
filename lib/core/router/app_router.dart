@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/models/sign_up_draft.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/create_account_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/forgot_password_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/profile_photo_page.dart';
@@ -45,10 +46,14 @@ abstract final class AppRouter {
       GoRoute(
         path: AppRoutes.profilePhotoPath,
         name: AppRoutes.profilePhoto,
-        builder: (context, state) => ProfilePhotoPage(
-          phoneNumber: state.uri.queryParameters['phone'] ?? '',
-          fullName: state.uri.queryParameters['name'] ?? '',
-        ),
+        // Step two of sign-up carries step one's details — including the
+        // password — in `extra` rather than the URL. A deep link therefore
+        // arrives with nothing to submit, so it goes back to step one instead
+        // of showing a form that cannot create anything.
+        redirect: (context, state) =>
+            state.extra is SignUpDraft ? null : AppRoutes.createAccountPath,
+        builder: (context, state) =>
+            ProfilePhotoPage(draft: state.extra! as SignUpDraft),
       ),
       GoRoute(
         path: AppRoutes.verifyNumberPath,

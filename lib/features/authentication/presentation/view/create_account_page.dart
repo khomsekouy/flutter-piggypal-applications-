@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/models/sign_up_draft.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/utils/password_rules.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/app_text_field.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
@@ -104,16 +105,20 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   /// Hands the collected details to step two (the optional profile photo),
   /// which is where the account is actually created. Nothing is sent yet, so
   /// this is a plain push rather than an awaited request.
+  ///
+  /// The details travel in `extra`, not in the URL: one of them is a password.
   void _handleNext() {
     if (!_canSubmit) return;
     FocusScope.of(context).unfocus();
     unawaited(
       context.pushNamed(
         AppRoutes.profilePhoto,
-        queryParameters: {
-          'phone': '${PhoneNumberField.dialCode} $_digits',
-          'name': _nameController.text.trim(),
-        },
+        extra: SignUpDraft(
+          countryCode: PhoneNumberField.dialCode,
+          phone: _digits,
+          password: _passwordController.text,
+          name: _nameController.text.trim(),
+        ),
       ),
     );
   }

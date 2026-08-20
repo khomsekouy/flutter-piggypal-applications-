@@ -23,9 +23,9 @@ abstract final class AppRoutes {
   static const createAccount = 'create-account';
   static const createAccountPath = '/create-account';
 
-  /// Second step of sign-up: the optional profile photo. Expects the `phone`
-  /// query parameter from step one, plus an optional `name` used for the
-  /// initials placeholder.
+  /// Second step of sign-up: the optional profile photo, and the screen that
+  /// actually creates the account. Expects a `SignUpDraft` in the route's
+  /// `extra` — it carries a password, which has no business in a URL.
   static const profilePhoto = 'profile-photo';
   static const profilePhotoPath = '/profile-photo';
 

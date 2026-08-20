@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/app_text_field.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
@@ -29,7 +31,6 @@ class _SignInPageState extends State<SignInPage> {
   bool _phoneValid = false;
 
   bool _obscurePassword = true;
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -53,20 +54,51 @@ class _SignInPageState extends State<SignInPage> {
 
   void _onFieldChanged() => setState(() {});
 
-  bool get _canSubmit =>
-      _phoneValid && _passwordController.text.isNotEmpty && !_isLoading;
+  /// Digits only — the field strips the dial code and any leading zero, and
+  /// `POST /auth/login` wants the national number on its own.
+  String get _digits => _phoneController.text.replaceAll(RegExp(r'\D'), '');
 
-  Future<void> _handleSignIn() async {
-    if (!_canSubmit) return;
+  bool _canSubmit(bool isBusy) =>
+      _phoneValid && _passwordController.text.isNotEmpty && !isBusy;
+
+  void _handleSignIn() {
+    if (!_canSubmit(context.read<AuthenticationBloc>().state.isBusy)) return;
     FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
-    // TODO(auth): authenticate through the repository and only continue on
-    // success; today any filled-in credentials are accepted.
-    await Future<void>.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    // Replaces the auth stack so back from home cannot return to sign-in.
-    context.goNamed(AppRoutes.home);
+    context.read<AuthenticationBloc>().add(
+      AuthenticationSignInRequested(
+        countryCode: PhoneNumberField.dialCode,
+        phone: _digits,
+        password: _passwordController.text,
+      ),
+    );
+  }
+
+  /// Navigation and errors both live here rather than after an awaited call:
+  /// the bloc is app-wide, so the result of a sign-in can arrive at any time
+  /// — including from a launch check that finished while this screen was up.
+  void _onAuthStateChanged(BuildContext context, AuthenticationState state) {
+    final message = state.errorMessage;
+    if (message != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.surface,
+            content: Text(
+              message,
+              style: const TextStyle(color: AppColors.textPrimary),
+            ),
+          ),
+        );
+      context.read<AuthenticationBloc>().add(
+        const AuthenticationErrorDismissed(),
+      );
+    }
+
+    if (state.isAuthenticated) {
+      // Replaces the auth stack so back from home cannot return to sign-in.
+      context.goNamed(AppRoutes.home);
+    }
   }
 
   void _goToCreateAccount() {
@@ -79,6 +111,14 @@ class _SignInPageState extends State<SignInPage> {
 
   @override
   Widget build(BuildContext context) {
+    return BlocConsumer<AuthenticationBloc, AuthenticationState>(
+      listener: _onAuthStateChanged,
+      builder: _buildForm,
+    );
+  }
+
+  Widget _buildForm(BuildContext context, AuthenticationState state) {
+    final isBusy = state.isBusy;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -173,8 +213,8 @@ class _SignInPageState extends State<SignInPage> {
                 GradientButton(
                   label: 'Sign In',
                   icon: Icons.lock_outline,
-                  isLoading: _isLoading,
-                  onPressed: _canSubmit ? _handleSignIn : null,
+                  isLoading: isBusy,
+                  onPressed: _canSubmit(isBusy) ? _handleSignIn : null,
                 ),
                 const SizedBox(height: 20),
                 const Row(

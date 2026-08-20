@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/account/data/profile_store.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:flutter_piggypal_app/features/languages/presentation/language_scope.dart';
 import 'package:flutter_piggypal_app/features/languages/presentation/widgets/language_menu_button.dart';
 import 'package:flutter_piggypal_app/features/notification/presentation/widgets/notification_bell.dart';
@@ -419,8 +421,15 @@ Future<void> _confirmSignOut(BuildContext context) async {
   );
   if (!(ok ?? false)) return;
   if (!context.mounted) return;
-  // TODO(auth): clear the persisted session before leaving.
-  //
+
+  // Revokes this device's session server-side (`POST /auth/logout`) and drops
+  // the stored tokens. Not awaited: the tokens are cleared either way, and
+  // holding the user on this screen while a round trip finishes would mean a
+  // flaky connection could keep them signed in.
+  context.read<AuthenticationBloc>().add(
+    const AuthenticationSignOutRequested(),
+  );
+
   // `goNamed`, not `nav.back()` — signing out has to leave the module
   // entirely. TFNav only pops within the shell, which would drop the user back
   // on the previous tab still signed in. `go` also replaces the route stack, so
