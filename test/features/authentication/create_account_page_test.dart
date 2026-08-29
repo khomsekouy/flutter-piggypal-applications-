@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_piggypal_app/core/di/injection_container.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
-import 'package:flutter_piggypal_app/features/authentication/presentation/models/sign_up_draft.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/create_account_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +12,17 @@ import '../../helpers/helpers.dart';
 
 void main() {
   group('CreateAccountPage', () {
+    late FakeAuthApi api;
+
+    // This screen now creates the account, so it needs the real bloc and a
+    // server to answer it.
+    setUp(() async {
+      api = await setUpDependencies()
+        ..phoneVerified = false;
+    });
+
+    tearDown(tearDownDependencies);
+
     /// The form is taller than the default 800x600 test surface, which puts
     /// the terms checkbox and submit button out of hit-test range.
     Future<void> pumpPage(WidgetTester tester) async {
@@ -181,46 +194,48 @@ void main() {
       );
     });
 
-    testWidgets('the CTA moves on to step two rather than submitting', (
+    testWidgets('is the first of four steps and creates the account', (
       tester,
     ) async {
       await pumpPage(tester);
 
-      expect(find.text('Step 1 of 2'), findsOneWidget);
+      expect(find.text('Step 1 of 4'), findsOneWidget);
       expect(find.text('Next'), findsOneWidget);
-      // Creating the account is step two's job now.
-      expect(find.text('Create Account'), findsOneWidget); // the title only
-      expect(
-        find.widgetWithText(GradientButton, 'Create Account'),
-        findsNothing,
-      );
     });
 
-    testWidgets('hands the number and name to the photo step', (tester) async {
+    testWidgets('registers the account, then moves on to verification', (
+      tester,
+    ) async {
       await tester.binding.setSurfaceSize(const Size(600, 1600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      SignUpDraft? pushed;
       final router = GoRouter(
         initialLocation: AppRoutes.createAccountPath,
         routes: [
           GoRoute(
             path: AppRoutes.createAccountPath,
             name: AppRoutes.createAccount,
-            builder: (context, state) => const CreateAccountPage(),
+            builder: (_, _) => const CreateAccountPage(),
+          ),
+          GoRoute(
+            path: AppRoutes.verifyPhonePath,
+            name: AppRoutes.verifyPhone,
+            builder: (_, _) => const Scaffold(body: Text('verify step')),
           ),
           GoRoute(
             path: AppRoutes.profilePhotoPath,
             name: AppRoutes.profilePhoto,
-            builder: (context, state) {
-              pushed = state.extra as SignUpDraft?;
-              return const Scaffold(body: Text('photo step'));
-            },
+            builder: (_, _) => const Scaffold(body: Text('photo step')),
           ),
         ],
       );
       addTearDown(router.dispose);
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpWidget(
+        BlocProvider(
+          create: (_) => sl<AuthenticationBloc>(),
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
 
       await fillValidForm(tester);
       await tester.tap(find.byType(Checkbox));
@@ -228,14 +243,19 @@ void main() {
       await tester.tap(find.byType(GradientButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('photo step'), findsOneWidget);
+      final request = api.requestTo('/auth/register')!;
       // The dialling code and the national number travel apart, which is how
-      // `POST /auth/register` wants them — and the password never touches the
-      // URL.
-      expect(pushed?.countryCode, '+855');
-      expect(pushed?.phone, '12345678');
-      expect(pushed?.name, 'Dara Sok');
-      expect(pushed?.password, isNotEmpty);
+      // `POST /auth/register` wants them.
+      expect(request.fields['countryCode'], '+855');
+      expect(request.fields['phone'], '12345678');
+      expect(request.fields['name'], 'Dara Sok');
+      // No picture yet: it is picked on the last screen, once there is an
+      // account to attach it to.
+      expect(request.fileParts, isEmpty);
+
+      // The account exists now, so the number can finally be proved.
+      expect(find.text('verify step'), findsOneWidget);
+      expect(find.text('photo step'), findsNothing);
     });
 
     testWidgets('offers a route back to sign in', (tester) async {

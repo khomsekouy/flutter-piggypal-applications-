@@ -78,3 +78,20 @@ class SecureStorageException implements Exception {
   @override
   String toString() => 'SecureStorageException: $message';
 }
+
+/// Thrown when a one-time code was rejected — wrong digits, expired, or too
+/// many guesses already spent.
+///
+/// Separate from [UnauthorizedException] even though the API answers both
+/// with a 401: this one says nothing about the session, and treating it as an
+/// auth failure would sign the user out for a typo.
+class InvalidVerificationCodeException implements Exception {
+  const InvalidVerificationCodeException([
+    this.message = 'That code is invalid or has expired.',
+  ]);
+
+  final String message;
+
+  @override
+  String toString() => 'InvalidVerificationCodeException: $message';
+}

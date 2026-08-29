@@ -36,7 +36,6 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }
 
   @override
-
   ResultVoid delete(String id) async {
     try {
       await _local.delete(id);

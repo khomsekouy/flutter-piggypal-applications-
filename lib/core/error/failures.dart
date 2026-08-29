@@ -58,3 +58,11 @@ class AuthFailure extends Failure {
 class CancelledFailure extends Failure {
   const CancelledFailure([super.message = 'Request cancelled.']);
 }
+
+/// A one-time code was rejected. Not an [AuthFailure]: the session is fine,
+/// the six digits were not.
+class VerificationFailure extends Failure {
+  const VerificationFailure([
+    super.message = 'That code is invalid or has expired.',
+  ]);
+}

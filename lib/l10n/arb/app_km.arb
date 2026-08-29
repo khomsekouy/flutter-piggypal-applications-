@@ -7,5 +7,7 @@
     "languagePrompt": "ជ្រើសរើសរបៀបបង្ហាញកម្មវិធី។",
     "continueAction": "បន្ត",
     "languageEnglishName": "អង់គ្លេស",
-    "languageKhmerName": "ខ្មែរ"
+    "languageKhmerName": "ខ្មែរ",
+    "serverWakingTitle": "កំពុងដាស់ម៉ាស៊ីនមេ…",
+    "serverWakingMessage": "វាផ្អាកនៅពេលមិនប្រើ។ វាអាចចំណាយពេលដល់មួយនាទី។"
 }

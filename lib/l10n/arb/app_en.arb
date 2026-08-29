@@ -31,5 +31,13 @@
     "languageKhmerName": "Khmer",
     "@languageKhmerName": {
         "description": "Display name of the Khmer language"
+    },
+    "serverWakingTitle": "Waking the server up…",
+    "@serverWakingTitle": {
+        "description": "Banner headline shown when a request is taking long enough that the server is probably cold-starting"
+    },
+    "serverWakingMessage": "It sleeps when idle. This can take up to a minute.",
+    "@serverWakingMessage": {
+        "description": "Banner detail explaining why the first request after an idle period is slow"
     }
 }

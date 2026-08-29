@@ -287,39 +287,41 @@ class MorePage extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Column(
             children: [
-              for (final (i, s) in <
-                ({
-                  String label,
-                  IconData icon,
-                  VoidCallback? onTap,
-                  bool unreadBadge,
-                })
-              >[
-                (
-                  label: 'Organization profile',
-                  icon: Icons.grid_view_rounded,
-                  onTap: null,
-                  unreadBadge: false,
-                ),
-                (
-                  label: 'Team & permissions',
-                  icon: Icons.people_outline,
-                  onTap: null,
-                  unreadBadge: false,
-                ),
-                (
-                  label: 'Tax & currency',
-                  icon: Icons.sell_outlined,
-                  onTap: null,
-                  unreadBadge: false,
-                ),
-                (
-                  label: 'Notifications',
-                  icon: Icons.notifications_outlined,
-                  onTap: () => nav.push(TFScreens.notifications),
-                  unreadBadge: true,
-                ),
-              ].indexed)
+              for (final (i, s)
+                  in <
+                        ({
+                          String label,
+                          IconData icon,
+                          VoidCallback? onTap,
+                          bool unreadBadge,
+                        })
+                      >[
+                        (
+                          label: 'Organization profile',
+                          icon: Icons.grid_view_rounded,
+                          onTap: null,
+                          unreadBadge: false,
+                        ),
+                        (
+                          label: 'Team & permissions',
+                          icon: Icons.people_outline,
+                          onTap: null,
+                          unreadBadge: false,
+                        ),
+                        (
+                          label: 'Tax & currency',
+                          icon: Icons.sell_outlined,
+                          onTap: null,
+                          unreadBadge: false,
+                        ),
+                        (
+                          label: 'Notifications',
+                          icon: Icons.notifications_outlined,
+                          onTap: () => nav.push(TFScreens.notifications),
+                          unreadBadge: true,
+                        ),
+                      ]
+                      .indexed)
                 TFRow(
                   first: i == 0,
                   onTap: s.onTap,

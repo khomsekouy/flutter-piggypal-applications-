@@ -46,9 +46,7 @@ class MonthlyLimitCard extends StatelessWidget {
     // Once 90%+ of the limit is used (but not yet over) we nudge with the warn
     // tone; over the limit switches to the negative tone.
     final near = !over && pct >= 90;
-    final barColor = over
-        ? c.neg
-        : (near ? c.warn : c.primary);
+    final barColor = over ? c.neg : (near ? c.warn : c.primary);
 
     return TFCard(
       radius: 22,
@@ -58,8 +56,11 @@ class MonthlyLimitCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.account_balance_wallet_rounded,
-                  size: 18, color: c.textMuted),
+              Icon(
+                Icons.account_balance_wallet_rounded,
+                size: 18,
+                color: c.textMuted,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

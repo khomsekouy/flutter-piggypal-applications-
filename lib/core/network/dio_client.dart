@@ -3,6 +3,7 @@ import 'package:flutter_piggypal_app/core/network/api_config.dart';
 import 'package:flutter_piggypal_app/core/network/interceptors/api_log_interceptor.dart';
 import 'package:flutter_piggypal_app/core/network/interceptors/auth_interceptor.dart';
 import 'package:flutter_piggypal_app/core/network/interceptors/refresh_interceptor.dart';
+import 'package:flutter_piggypal_app/core/network/interceptors/slow_request_interceptor.dart';
 
 /// Builds the single [Dio] the whole app shares.
 ///
@@ -33,6 +34,9 @@ Dio buildDio({
     // (`mapDioException`), rather than each call site re-checking the status.
     validateStatus: (status) => status != null && status >= 200 && status < 300,
   );
+
+  // First in the chain on purpose — see SlowRequestInterceptor.
+  client.interceptors.add(SlowRequestInterceptor());
 
   client.interceptors.add(AuthInterceptor(readAccessToken));
 

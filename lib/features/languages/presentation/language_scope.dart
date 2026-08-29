@@ -17,7 +17,8 @@ enum AppLanguage {
     short: 'ខ្មែរ',
     flag: '🇰🇭',
     hue: 8,
-  );
+  )
+  ;
 
   const AppLanguage({
     required this.code,

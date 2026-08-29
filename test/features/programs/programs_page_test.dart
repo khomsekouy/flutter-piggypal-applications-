@@ -20,8 +20,9 @@ void main() {
     await sl.reset();
   });
 
-  testWidgets('Programs tab renders Drift-seeded programs via the bloc',
-      (tester) async {
+  testWidgets('Programs tab renders Drift-seeded programs via the bloc', (
+    tester,
+  ) async {
     await tester.pumpAppToHome();
 
     // Navigate to the Programs tab (bottom-nav label).

@@ -152,6 +152,94 @@ void main() {
     });
   });
 
+  group('phone verification', () {
+    /// A fresh, unverified account — the state the verification screens are
+    /// reached in.
+    Future<void> signUp() async {
+      api.phoneVerified = false;
+      await repository.signIn(
+        countryCode: '+855',
+        phone: '97573235',
+        password: 'Passw0rd!23',
+      );
+    }
+
+    test('asks for a code with the session and no number', () async {
+      await signUp();
+
+      final result = await repository.requestPhoneVerification();
+
+      final request = api.requestTo('/auth/verify-phone/request')!;
+      expect(request.isAuthenticated, isTrue);
+      // The number is the server's to know: an endpoint that accepted one
+      // would be an endpoint for texting strangers.
+      expect(request.fields, isEmpty);
+      expect(
+        result.getRight().toNullable()?.alreadyVerified,
+        isFalse,
+      );
+    });
+
+    test('reports a number that needed no code', () async {
+      await signUp();
+      api.phoneVerified = true;
+
+      final result = await repository.requestPhoneVerification();
+
+      expect(result.getRight().toNullable()?.alreadyVerified, isTrue);
+    });
+
+    test('a correct code verifies the number', () async {
+      await signUp();
+      await repository.requestPhoneVerification();
+
+      final result = await repository.confirmPhoneVerification(
+        code: api.mockCode,
+      );
+
+      expect(result.isRight(), isTrue);
+      expect(
+        api.requestTo('/auth/verify-phone/confirm')!.fields['code'],
+        api.mockCode,
+      );
+    });
+
+    test(
+      'a rejected code is a VerificationFailure, not an AuthFailure',
+      () async {
+        await signUp();
+        await repository.requestPhoneVerification();
+
+        final result = await repository.confirmPhoneVerification(
+          code: '000000',
+        );
+
+        final failure = result.getLeft().toNullable();
+        // The distinction that matters: an AuthFailure here would sign the user
+        // out over a typo. The session is untouched.
+        expect(failure, isA<VerificationFailure>());
+        expect(failure, isNot(isA<AuthFailure>()));
+        expect(await tokens.readAccessToken(), isNotNull);
+      },
+    );
+
+    test('a rejected code is never refreshed and retried', () async {
+      await signUp();
+      await repository.requestPhoneVerification();
+
+      await repository.confirmPhoneVerification(code: '000000');
+
+      // The server counts an attempt *before* it compares, so a replay would
+      // spend two of the five guesses the user gets — and rotate the refresh
+      // token for nothing.
+      final attempts = api.requests
+          .where((r) => r.path.endsWith('/auth/verify-phone/confirm'))
+          .length;
+      expect(attempts, 1);
+      expect(api.rotations, 0);
+    });
+  });
+
   group('refresh on 401', () {
     Future<void> signIn() => repository.signIn(
       countryCode: '+855',

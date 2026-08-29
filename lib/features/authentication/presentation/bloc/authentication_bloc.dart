@@ -12,6 +12,7 @@ import 'package:flutter_piggypal_app/features/authentication/domain/usecases/get
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_in.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_out.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_up.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/update_profile_photo.dart';
 import 'package:fpdart/fpdart.dart';
 
 part 'authentication_event.dart';
@@ -30,16 +31,19 @@ class AuthenticationBloc
     required SignUp signUp,
     required SignOut signOut,
     required GetCurrentUser getCurrentUser,
+    required UpdateProfilePhoto updateProfilePhoto,
     required AuthenticationRepository repository,
   }) : _signIn = signIn,
        _signUp = signUp,
        _signOut = signOut,
        _getCurrentUser = getCurrentUser,
+       _updateProfilePhoto = updateProfilePhoto,
        _repository = repository,
        super(const AuthenticationState()) {
     on<AuthenticationStarted>(_onStarted);
     on<AuthenticationSignInRequested>(_onSignInRequested);
     on<AuthenticationSignUpRequested>(_onSignUpRequested);
+    on<AuthenticationProfilePhotoUpdated>(_onProfilePhotoUpdated);
     on<AuthenticationSignOutRequested>(_onSignOutRequested);
     on<AuthenticationUserRefreshed>(_onUserRefreshed);
     on<AuthenticationErrorDismissed>(_onErrorDismissed);
@@ -57,6 +61,7 @@ class AuthenticationBloc
   final SignUp _signUp;
   final SignOut _signOut;
   final GetCurrentUser _getCurrentUser;
+  final UpdateProfilePhoto _updateProfilePhoto;
 
   /// For `hasSession()` — the cheap "is there a token on disk" check, which is
   /// not worth a use case of its own — and for the expiry stream.
@@ -123,11 +128,37 @@ class AuthenticationBloc
         password: event.password,
         email: event.email,
         name: event.name,
+      ),
+    );
+    emit(_sessionOutcome(result));
+  }
+
+  /// Unlike the other calls here, a failure leaves the session alone: the
+  /// account is made and signed in, and a picture that would not upload is
+  /// worth a message, not a sign-out.
+  Future<void> _onProfilePhotoUpdated(
+    AuthenticationProfilePhotoUpdated event,
+    Emitter<AuthenticationState> emit,
+  ) async {
+    emit(state.copyWith(status: AuthenticationStatus.loading));
+    final result = await _updateProfilePhoto(
+      UpdateProfilePhotoParams(
         avatar: event.avatar,
         avatarFileName: event.avatarFileName,
       ),
     );
-    emit(_sessionOutcome(result));
+    emit(
+      result.match(
+        (failure) => state.copyWith(
+          status: AuthenticationStatus.authenticated,
+          errorMessage: failure.message,
+        ),
+        (user) => state.copyWith(
+          status: AuthenticationStatus.authenticated,
+          user: user,
+        ),
+      ),
+    );
   }
 
   Future<void> _onSignOutRequested(

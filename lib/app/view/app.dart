@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_piggypal_app/app/view/server_wakeup_banner.dart';
 import 'package:flutter_piggypal_app/core/di/injection_container.dart';
 import 'package:flutter_piggypal_app/core/router/app_router.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
@@ -42,6 +43,11 @@ class App extends StatelessWidget {
                 // in AppRouter. The Training Finance module still owns its own
                 // in-shell navigation once you reach the `home` route.
                 routerConfig: AppRouter.router,
+                // Above the router, so a cold-starting API is explained
+                // wherever the user happens to be standing — most often
+                // splash, waiting on the session check.
+                builder: (context, child) =>
+                    ServerWakeupBanner(child: child ?? const SizedBox.shrink()),
               );
             },
           ),

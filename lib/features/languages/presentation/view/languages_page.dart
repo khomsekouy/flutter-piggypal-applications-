@@ -120,7 +120,6 @@ class _LanguageOption extends StatelessWidget {
             radius: 14,
             hue: language.hue,
             child: Text(
-
               language.flag,
               style: const TextStyle(fontSize: 22),
             ),
@@ -181,9 +180,7 @@ class _SelectionDot extends StatelessWidget {
           width: 2,
         ),
       ),
-      child: selected
-          ? Icon(Icons.check, size: 15, color: c.primaryInk)
-          : null,
+      child: selected ? Icon(Icons.check, size: 15, color: c.primaryInk) : null,
     );
   }
 }

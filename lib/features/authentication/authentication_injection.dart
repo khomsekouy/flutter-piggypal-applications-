@@ -6,11 +6,15 @@ import 'package:flutter_piggypal_app/features/authentication/data/datasources/au
 import 'package:flutter_piggypal_app/features/authentication/data/datasources/authentication_remote_data_source.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/repositories/authentication_repository_impl.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/repositories/authentication_repository.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/confirm_phone_verification.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/get_current_user.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/request_phone_verification.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_in.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_out.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_up.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/update_profile_photo.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/phone_verification_bloc.dart';
 
 /// Wires authentication into the service locator.
 ///
@@ -43,7 +47,16 @@ void initAuthentication({AuthTokenStore? tokenStore, Dio? dio}) {
         signUp: sl(),
         signOut: sl(),
         getCurrentUser: sl(),
+        updateProfilePhoto: sl(),
         repository: sl(),
+      ),
+    )
+    // One per screen: the two verification steps each drive their own, and
+    // neither outlives the screen that made it.
+    ..registerFactory(
+      () => PhoneVerificationBloc(
+        requestPhoneVerification: sl(),
+        confirmPhoneVerification: sl(),
       ),
     )
     // Use cases.
@@ -51,6 +64,9 @@ void initAuthentication({AuthTokenStore? tokenStore, Dio? dio}) {
     ..registerLazySingleton(() => SignUp(sl()))
     ..registerLazySingleton(() => SignOut(sl()))
     ..registerLazySingleton(() => GetCurrentUser(sl()))
+    ..registerLazySingleton(() => UpdateProfilePhoto(sl()))
+    ..registerLazySingleton(() => RequestPhoneVerification(sl()))
+    ..registerLazySingleton(() => ConfirmPhoneVerification(sl()))
     // Repository.
     ..registerLazySingleton<AuthenticationRepository>(
       () => AuthenticationRepositoryImpl(sl(), sl(), sl()),

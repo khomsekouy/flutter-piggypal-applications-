@@ -9,6 +9,7 @@ import 'package:flutter_piggypal_app/features/authentication/data/datasources/au
 import 'package:flutter_piggypal_app/features/authentication/data/datasources/authentication_remote_data_source.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_session.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_user.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/phone_verification_request.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/repositories/authentication_repository.dart';
 import 'package:fpdart/fpdart.dart';
 
@@ -124,6 +125,42 @@ class AuthenticationRepositoryImpl implements AuthenticationRepository {
       // credential the server has already rejected.
       await _tokens.clear();
       return Left(AuthFailure(e.message));
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
+    }
+  }
+
+  @override
+  ResultFuture<AuthUser> updateProfilePhoto({
+    required Uint8List avatar,
+    String? avatarFileName,
+  }) async {
+    try {
+      return Right(
+        await _remote.updateProfilePhoto(
+          avatar: avatar,
+          avatarFileName: avatarFileName,
+        ),
+      );
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
+    }
+  }
+
+  @override
+  ResultFuture<PhoneVerificationRequest> requestPhoneVerification() async {
+    try {
+      return Right(await _remote.requestPhoneVerification());
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
+    }
+  }
+
+  @override
+  ResultVoid confirmPhoneVerification({required String code}) async {
+    try {
+      await _remote.confirmPhoneVerification(code: code);
+      return const Right(null);
     } on Exception catch (e) {
       return Left(failureFromException(e));
     }

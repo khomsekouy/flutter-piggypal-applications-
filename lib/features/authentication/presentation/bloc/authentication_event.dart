@@ -30,7 +30,11 @@ class AuthenticationSignInRequested extends AuthenticationEvent {
   List<Object?> get props => [countryCode, phone, password];
 }
 
-/// `POST /auth/register`. [avatar] is optional and uploaded with the account.
+/// `POST /auth/register`, which also signs the new account in.
+///
+/// No picture here any more: it is picked on the last screen of sign-up, by
+/// which point the account exists and there is no registration request left
+/// to attach it to. See [AuthenticationProfilePhotoUpdated].
 class AuthenticationSignUpRequested extends AuthenticationEvent {
   const AuthenticationSignUpRequested({
     required this.countryCode,
@@ -38,8 +42,6 @@ class AuthenticationSignUpRequested extends AuthenticationEvent {
     required this.password,
     this.email,
     this.name,
-    this.avatar,
-    this.avatarFileName,
   });
 
   final String countryCode;
@@ -47,19 +49,23 @@ class AuthenticationSignUpRequested extends AuthenticationEvent {
   final String password;
   final String? email;
   final String? name;
-  final Uint8List? avatar;
+
+  @override
+  List<Object?> get props => [countryCode, phone, password, email, name];
+}
+
+/// `PATCH /users/me` with the picked photo as the multipart `avatar` part.
+class AuthenticationProfilePhotoUpdated extends AuthenticationEvent {
+  const AuthenticationProfilePhotoUpdated({
+    required this.avatar,
+    this.avatarFileName,
+  });
+
+  final Uint8List avatar;
   final String? avatarFileName;
 
   @override
-  List<Object?> get props => [
-    countryCode,
-    phone,
-    password,
-    email,
-    name,
-    avatar,
-    avatarFileName,
-  ];
+  List<Object?> get props => [avatar, avatarFileName];
 }
 
 /// `POST /auth/logout`, then forget the tokens.

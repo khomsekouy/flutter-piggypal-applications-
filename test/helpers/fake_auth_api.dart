@@ -64,6 +64,33 @@ class FakeAuthApi implements HttpClientAdapter {
   /// Flip to make every call fail the way an unreachable server does.
   bool offline = false;
 
+  /// Whether the account's number is already proved. Sign-up leaves this
+  /// false, which is what sends a new account to the verification screens.
+  bool phoneVerified = true;
+
+  /// The only code `/auth/verify-phone/confirm` accepts. Mirrors the real
+  /// API's `OTP_MOCK_CODE`, which is also what makes it echo `devCode`.
+  String mockCode = '123456';
+
+  /// Flip to make `verify-phone/request` answer 429, as the real API does on
+  /// the fourth send inside fifteen minutes.
+  bool throttleCodeRequests = false;
+
+  /// How many codes were asked for.
+  int codeRequests = 0;
+
+  /// Flip to make `PATCH /users/me` refuse the picture, as an unstorable or
+  /// oversized file does.
+  bool rejectAvatarUpload = false;
+
+  /// The name on the account. Nullable, because the API's own `name` is —
+  /// registering with a number and a password alone is allowed.
+  String? userName = 'Test User';
+
+  /// Set by a successful avatar upload, and what the returned profile then
+  /// carries — so a test can tell an upload that landed from one that did not.
+  String? avatarUrl;
+
   static const accessToken = 'test-access-token';
   static const refreshToken = 'test-refresh-token';
 
@@ -85,15 +112,15 @@ class FakeAuthApi implements HttpClientAdapter {
   /// does, without telling the client.
   void expireAccessToken() => liveAccessToken = 'server-rotated-access-token';
 
-  static const user = <String, dynamic>{
+  Map<String, dynamic> get user => <String, dynamic>{
     'id': 'user-1',
     'phone': '+85512345678',
     'email': 'test@piggypal.test',
-    'name': 'Test User',
-    'avatarUrl': null,
+    'name': userName,
+    'avatarUrl': avatarUrl,
     'currency': 'USD',
     'status': 'active',
-    'phoneVerified': true,
+    'phoneVerified': phoneVerified,
     'emailVerified': false,
     'createdAt': '2026-01-15T08:00:00.000Z',
   };
@@ -145,13 +172,30 @@ class FakeAuthApi implements HttpClientAdapter {
     if (path.endsWith('/auth/logout')) {
       return _json({'message': 'Signed out successfully'}, 200);
     }
+    if (path.endsWith('/auth/verify-phone/request')) {
+      return _requestPhoneVerification(options);
+    }
+    if (path.endsWith('/auth/verify-phone/confirm')) {
+      return _confirmPhoneVerification(options);
+    }
     if (path.endsWith('/users/me')) {
       final presented = options.headers['Authorization'];
       final accepted =
           !rejectCurrentUser && presented == 'Bearer $liveAccessToken';
-      return accepted
-          ? _json(user, 200)
-          : _json({'message': 'Unauthorized', 'statusCode': 401}, 401);
+      if (!accepted) {
+        return _json({'message': 'Unauthorized', 'statusCode': 401}, 401);
+      }
+      if (options.method == 'PATCH') {
+        if (rejectAvatarUpload) {
+          return _json({
+            'message': 'Avatar could not be stored',
+            'error': 'Bad Request',
+            'statusCode': 400,
+          }, 400);
+        }
+        avatarUrl = 'https://piggypal.test/uploads/avatar.jpg';
+      }
+      return _json(user, 200);
     }
 
     return _json({
@@ -159,6 +203,66 @@ class FakeAuthApi implements HttpClientAdapter {
       'error': 'Not Found',
       'statusCode': 404,
     }, 404);
+  }
+
+  /// Guarded, so an unusable token is a 401 before anything else is looked
+  /// at — the same order the real `JwtAuthGuard` works in.
+  ResponseBody? _rejectIfUnauthenticated(RequestOptions options) {
+    if (options.headers['Authorization'] == 'Bearer $liveAccessToken') {
+      return null;
+    }
+    return _json({'message': 'Unauthorized', 'statusCode': 401}, 401);
+  }
+
+  ResponseBody _requestPhoneVerification(RequestOptions options) {
+    final rejected = _rejectIfUnauthenticated(options);
+    if (rejected != null) return rejected;
+
+    if (throttleCodeRequests) {
+      return _json({
+        'message': 'ThrottlerException: Too Many Requests',
+        'statusCode': 429,
+      }, 429);
+    }
+    if (phoneVerified) {
+      // No code sent: the real API will not spend a message re-proving a
+      // number it has already proved.
+      return _json({
+        'message': 'Phone is already verified',
+        'phoneVerified': true,
+      }, 200);
+    }
+
+    codeRequests++;
+    return _json({
+      'message': 'A verification code was sent',
+      'phoneVerified': false,
+      // Echoed only because codes are mocked, exactly as the API does.
+      'devCode': mockCode,
+    }, 200);
+  }
+
+  ResponseBody _confirmPhoneVerification(RequestOptions options) {
+    final rejected = _rejectIfUnauthenticated(options);
+    if (rejected != null) return rejected;
+
+    final body = options.data;
+    final code = body is Map ? '${body['code']}' : '';
+    if (code != mockCode) {
+      // 401, the same status an expired access token gets — which is why the
+      // client has to tell the two apart by more than the status.
+      return _json({
+        'message': 'Verification code is invalid or expired',
+        'error': 'Unauthorized',
+        'statusCode': 401,
+      }, 401);
+    }
+
+    phoneVerified = true;
+    return _json({
+      'message': 'Phone verified successfully',
+      'phoneVerified': true,
+    }, 200);
   }
 
   /// `POST /auth/refresh`, rotation and reuse detection included — the two

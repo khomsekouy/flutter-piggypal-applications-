@@ -3,11 +3,13 @@ import 'dart:typed_data';
 import 'package:flutter_piggypal_app/core/utils/typedefs.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_session.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_user.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/phone_verification_request.dart';
 
 /// Domain contract for authentication.
 ///
-/// Covers the four endpoints the app uses: sign in, sign up, sign out and
-/// "who am I". The implementation also owns the tokens — callers never see
+/// Covers the endpoints the app uses: sign in, sign up, sign out, "who am I",
+/// and the two halves of phone verification. The implementation also owns the
+/// tokens — callers never see
 /// them, they just get an [AuthSession] back and every later request is
 /// authenticated for them.
 abstract interface class AuthenticationRepository {
@@ -25,6 +27,12 @@ abstract interface class AuthenticationRepository {
   /// accepts a profile picture — there is no `avatarUrl` field, and sending
   /// one is rejected outright by its strict validation. Leave it null and the
   /// request goes out as plain JSON.
+  ///
+  /// Sign-up itself leaves it null: the picture is picked on the *last*
+  /// screen of the flow, by which point the account exists, so it goes up
+  /// through [updateProfilePhoto] instead. The parameter stays because the
+  /// endpoint really does take one, and a caller that has a picture in hand
+  /// at registration should not have to make two requests.
   ResultFuture<AuthSession> signUp({
     required String countryCode,
     required String phone,
@@ -43,6 +51,31 @@ abstract interface class AuthenticationRepository {
 
   /// `GET /users/me` — the full profile, not the token's claims.
   ResultFuture<AuthUser> getCurrentUser();
+
+  /// `PATCH /users/me` — attaches a profile picture to the signed-in account.
+  ///
+  /// Separate from [signUp] because the picture is now picked *after* the
+  /// account exists, so there is no registration request left to ride along
+  /// with. Returns the updated profile.
+  ResultFuture<AuthUser> updateProfilePhoto({
+    required Uint8List avatar,
+    String? avatarFileName,
+  });
+
+  /// `POST /auth/verify-phone/request` — sends a 6-digit code to the number
+  /// on the signed-in account.
+  ///
+  /// Takes no number: the server reads it from the session, so this can only
+  /// ever text the caller's own phone. Requires a session, which after
+  /// [signUp] there always is.
+  ResultFuture<PhoneVerificationRequest> requestPhoneVerification();
+
+  /// `POST /auth/verify-phone/confirm` — spends the code and marks the
+  /// number proved.
+  ///
+  /// A rejected code comes back as a `VerificationFailure`, never an
+  /// `AuthFailure`: the session is untouched by a typo.
+  ResultVoid confirmPhoneVerification({required String code});
 
   /// Whether a token is on disk. Cheap: no network, no validation — the splash
   /// screen uses it to decide whether it is worth calling [getCurrentUser].

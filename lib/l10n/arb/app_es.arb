@@ -10,5 +10,7 @@
     "languagePrompt": "Elige cómo se muestra la aplicación.",
     "continueAction": "Continuar",
     "languageEnglishName": "Inglés",
-    "languageKhmerName": "Jemer"
+    "languageKhmerName": "Jemer",
+    "serverWakingTitle": "Activando el servidor…",
+    "serverWakingMessage": "Se suspende cuando está inactivo. Esto puede tardar hasta un minuto."
 }

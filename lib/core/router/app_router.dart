@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
-import 'package:flutter_piggypal_app/features/authentication/presentation/models/sign_up_draft.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/create_account_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/forgot_password_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/profile_photo_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/reset_password_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/sign_in_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/verify_number_page.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/view/verify_phone_page.dart';
 import 'package:flutter_piggypal_app/features/splash/presentation/view/splash_page.dart';
 import 'package:flutter_piggypal_app/features/training_finance/training_finance_app.dart';
 import 'package:go_router/go_router.dart';
@@ -46,14 +46,15 @@ abstract final class AppRouter {
       GoRoute(
         path: AppRoutes.profilePhotoPath,
         name: AppRoutes.profilePhoto,
-        // Step two of sign-up carries step one's details — including the
-        // password — in `extra` rather than the URL. A deep link therefore
-        // arrives with nothing to submit, so it goes back to step one instead
-        // of showing a form that cannot create anything.
-        redirect: (context, state) =>
-            state.extra is SignUpDraft ? null : AppRoutes.createAccountPath,
-        builder: (context, state) =>
-            ProfilePhotoPage(draft: state.extra! as SignUpDraft),
+        // Nothing to pass any more: the account is created on the first
+        // screen of sign-up, so this one reads the name it needs off the
+        // session and uploads the picture against it.
+        builder: (context, state) => const ProfilePhotoPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.verifyPhonePath,
+        name: AppRoutes.verifyPhone,
+        builder: (context, state) => const VerifyPhonePage(),
       ),
       GoRoute(
         path: AppRoutes.verifyNumberPath,
@@ -68,6 +69,10 @@ abstract final class AppRouter {
             purpose: VerifyPurpose.fromQueryValue(
               state.uri.queryParameters['purpose'],
             ),
+            // Step one passes the code the server echoed back when it is
+            // running with mocked ones, so a debug build can prefill it.
+            // Absent on a deep link, which is the same as no mock.
+            devCode: state.extra is String ? state.extra! as String : null,
           );
         },
       ),

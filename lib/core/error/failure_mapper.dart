@@ -7,6 +7,9 @@ import 'package:flutter_piggypal_app/core/error/failures.dart';
 /// so a new exception type cannot quietly become "something went wrong" in
 /// half the app and a crash in the other half.
 Failure failureFromException(Object error) => switch (error) {
+  InvalidVerificationCodeException(:final message) => VerificationFailure(
+    message,
+  ),
   UnauthorizedException(:final message) => AuthFailure(message),
   ServerException(:final message, :final statusCode) => ServerFailure(
     message,

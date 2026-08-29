@@ -70,6 +70,23 @@ class OtpFieldState extends State<OtpField> {
     widget.onChanged?.call('');
   }
 
+  /// Drops [code] into the boxes as though it had been typed, `onCompleted`
+  /// included. Used by the debug-only fill on the verification screen, where
+  /// there is no SMS to read the code from yet.
+  void fill(String code) {
+    for (var i = 0; i < widget.length; i++) {
+      _controllers[i].text = i < code.length ? code[i] : '';
+    }
+    setState(() {});
+    _focusNodes.last.unfocus();
+
+    final filled = _code;
+    widget.onChanged?.call(filled);
+    if (filled.length == widget.length) {
+      widget.onCompleted?.call(filled);
+    }
+  }
+
   void _onChanged(int index, String value) {
     if (value.isNotEmpty && index < widget.length - 1) {
       _focusNodes[index + 1].requestFocus();

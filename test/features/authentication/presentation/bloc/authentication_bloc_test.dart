@@ -10,6 +10,7 @@ import 'package:flutter_piggypal_app/features/authentication/domain/usecases/get
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_in.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_out.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_up.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/update_profile_photo.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -26,6 +27,7 @@ void main() {
     signUp: SignUp(repository),
     signOut: SignOut(repository),
     getCurrentUser: GetCurrentUser(repository),
+    updateProfilePhoto: UpdateProfilePhoto(repository),
     repository: repository,
   );
 

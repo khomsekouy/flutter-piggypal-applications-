@@ -6,11 +6,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
-import 'package:flutter_piggypal_app/features/authentication/presentation/models/sign_up_draft.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_step_indicator.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/profile_photo_picker.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/requires_session.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -18,25 +18,23 @@ import 'package:image_picker/image_picker.dart';
 /// Injectable so widget tests don't need the platform channel.
 typedef PickImage = Future<XFile?> Function(ImageSource source);
 
-/// Second and last step of sign-up: an **optional** profile photo.
+/// Last step of sign-up: an **optional** profile photo.
 ///
-/// Reached from [AppRoutes.createAccount] with the details already collected.
-/// This is where the account is actually created: `POST /auth/register` goes
-/// out from here, carrying the photo as a multipart part when there is one, so
-/// the account and its picture are created in a single request that cannot
-/// half-fail. The photo is a nicety — "Continue" with a picture, "Skip"
-/// without one; both create the account and land on home, already signed in,
-/// because registering hands back a session.
+/// The account already exists by the time anyone gets here — it is created on
+/// the first screen, because the number cannot be verified without a session
+/// to send the code to. So the picture is its own request,
+/// `PATCH /users/me` with a multipart `avatar` part, rather than something
+/// that rides along with registration.
+///
+/// Which also means nothing here can fail the sign-up. "Continue" uploads the
+/// picture and goes home; "Skip" just goes home; an upload that fails says so
+/// and leaves the account exactly as it was, with a photo the user can add
+/// later from their profile.
 class ProfilePhotoPage extends StatefulWidget {
   const ProfilePhotoPage({
-    required this.draft,
     super.key,
     this.pickImage,
   });
-
-  /// Everything step one collected — the number, name and password that this
-  /// screen posts.
-  final SignUpDraft draft;
 
   /// Overrides the real gallery/camera picker. Tests pass a stub; production
   /// leaves it null and gets [ImagePicker].
@@ -161,34 +159,36 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
     );
   }
 
-  /// Drops a photo picked before the user changed their mind, then creates
-  /// the account without one.
+  /// Nothing to upload — straight in, photo or not.
   void _skip() {
     if (context.read<AuthenticationBloc>().state.isBusy) return;
-    setState(() {
-      _photo = null;
-      _photoName = null;
-    });
-    _finish();
+    context.goNamed(AppRoutes.home);
   }
 
-  /// Creates the account with whatever photo is in hand.
+  /// Uploads whatever photo is in hand, then goes home. With no photo picked
+  /// there is nothing to send, so this is [_skip].
   void _finish() {
     final bloc = context.read<AuthenticationBloc>();
     if (bloc.state.isBusy) return;
-    final draft = widget.draft;
+
+    final photo = _photo;
+    if (photo == null) {
+      _skip();
+      return;
+    }
+    _isUploading = true;
     bloc.add(
-      AuthenticationSignUpRequested(
-        countryCode: draft.countryCode,
-        phone: draft.phone,
-        password: draft.password,
-        name: draft.name,
-        email: draft.email,
-        avatar: _photo,
+      AuthenticationProfilePhotoUpdated(
+        avatar: photo,
         avatarFileName: _photoName,
       ),
     );
   }
+
+  /// True between dispatching the upload and hearing back, so an unrelated
+  /// emission — a background profile refresh, say — cannot be mistaken for
+  /// this screen's request finishing.
+  bool _isUploading = false;
 
   void _onAuthStateChanged(BuildContext context, AuthenticationState state) {
     final message = state.errorMessage;
@@ -199,34 +199,42 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
       );
     }
 
-    // Registering returns a session, so there is nothing left to sign in to —
-    // straight to home, with the auth stack replaced so back cannot return to
-    // a half-finished sign-up.
-    if (state.isAuthenticated) {
-      context.goNamed(AppRoutes.home);
-    }
+    if (state.isBusy || !_isUploading) return;
+    _isUploading = false;
+
+    // Home either way. A picture that would not upload is worth saying so
+    // (the message above did), not worth holding a finished sign-up hostage —
+    // it can be added later from the profile screen.
+    context.goNamed(AppRoutes.home);
   }
 
-  /// Back to step one, or to sign-in when this page was opened as a deep link
-  /// with nothing to pop.
+  /// There is nothing behind this screen worth going back to — the account is
+  /// made and the number is settled — so back means the same as skip.
   void _back() {
     if (context.read<AuthenticationBloc>().state.isBusy) return;
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.goNamed(AppRoutes.signIn);
-    }
+    _skip();
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<AuthenticationBloc, AuthenticationState>(
-      listener: _onAuthStateChanged,
-      builder: (context, state) => _buildPage(context, state.isBusy),
+    return RequiresSession(
+      builder: (context, user) =>
+          BlocConsumer<AuthenticationBloc, AuthenticationState>(
+            listener: _onAuthStateChanged,
+            builder: (context, state) =>
+                // The name itself, not `displayName`: an account with no name
+                // should fall back to the person glyph, and `displayName`
+                // would hand over a phone number to make initials out of.
+                _buildPage(context, user.name ?? '', state.isBusy),
+          ),
     );
   }
 
-  Widget _buildPage(BuildContext context, bool isSubmitting) {
+  Widget _buildPage(
+    BuildContext context,
+    String accountName,
+    bool isSubmitting,
+  ) {
     final hasPhoto = _photo != null;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -247,7 +255,7 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
                 Center(
                   child: ProfilePhotoPicker(
                     photo: _photo,
-                    initials: initialsOf(widget.draft.name),
+                    initials: initialsOf(accountName),
                     onTap: _openPhotoSourceSheet,
                   ),
                 ),
@@ -272,7 +280,7 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const AuthStepIndicator(step: 2, totalSteps: 2),
+                const AuthStepIndicator(step: 4, totalSteps: 4),
                 const SizedBox(height: 24),
                 Center(
                   child: TextButton.icon(
