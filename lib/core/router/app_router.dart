@@ -6,6 +6,7 @@ import 'package:flutter_piggypal_app/features/authentication/presentation/view/p
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/reset_password_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/sign_in_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/verify_number_page.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/view/verify_phone_page.dart';
 import 'package:flutter_piggypal_app/features/splash/presentation/view/splash_page.dart';
 import 'package:flutter_piggypal_app/features/training_finance/training_finance_app.dart';
 import 'package:go_router/go_router.dart';
@@ -45,10 +46,15 @@ abstract final class AppRouter {
       GoRoute(
         path: AppRoutes.profilePhotoPath,
         name: AppRoutes.profilePhoto,
-        builder: (context, state) => ProfilePhotoPage(
-          phoneNumber: state.uri.queryParameters['phone'] ?? '',
-          fullName: state.uri.queryParameters['name'] ?? '',
-        ),
+        // Nothing to pass any more: the account is created on the first
+        // screen of sign-up, so this one reads the name it needs off the
+        // session and uploads the picture against it.
+        builder: (context, state) => const ProfilePhotoPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.verifyPhonePath,
+        name: AppRoutes.verifyPhone,
+        builder: (context, state) => const VerifyPhonePage(),
       ),
       GoRoute(
         path: AppRoutes.verifyNumberPath,
@@ -63,6 +69,10 @@ abstract final class AppRouter {
             purpose: VerifyPurpose.fromQueryValue(
               state.uri.queryParameters['purpose'],
             ),
+            // Step one passes the code the server echoed back when it is
+            // running with mocked ones, so a debug build can prefill it.
+            // Absent on a deep link, which is the same as no mock.
+            devCode: state.extra is String ? state.extra! as String : null,
           );
         },
       ),

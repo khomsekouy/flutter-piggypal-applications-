@@ -100,9 +100,8 @@ class _NotificationPageState extends State<NotificationPage> {
                       options: _Filter.values,
                       labelOf: (f) => switch (f) {
                         _Filter.all => 'All',
-                        _Filter.unread => unread == 0
-                            ? 'Unread'
-                            : 'Unread ($unread)',
+                        _Filter.unread =>
+                          unread == 0 ? 'Unread' : 'Unread ($unread)',
                       },
                       onChanged: (f) => setState(() => _filter = f),
                     ),

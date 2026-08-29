@@ -2,14 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 /// Black-background launch screen shown while the app warms up.
 ///
-/// Fades the app mark in, holds briefly, then routes into the
-/// sign-in screen. Keeps its own black scaffold + light status-bar
+/// Fades the app mark in, holds briefly, then routes on — to home if the
+/// stored session is still good, otherwise to sign-in. It waits for both the
+/// hold *and* the session check ([AuthenticationStarted], dispatched by
+/// `App`), so a returning user never sees sign-in flash past on the way to
+/// their own dashboard. Keeps its own black scaffold + light status-bar
 /// treatment so the transition into the dark-fintech module is seamless.
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -44,8 +49,19 @@ class _SplashPageState extends State<SplashPage>
   Future<void> _scheduleNext() async {
     await Future<void>.delayed(SplashPage._hold);
     if (!mounted) return;
+
+    final bloc = context.read<AuthenticationBloc>();
+    // The check is normally done long before the hold is; this only matters on
+    // a cold start against a slow network.
+    if (!bloc.state.isResolved) {
+      await bloc.stream.firstWhere((state) => state.isResolved);
+      if (!mounted) return;
+    }
+
     // Replace the splash route so back doesn't return here.
-    context.goNamed(AppRoutes.signIn);
+    context.goNamed(
+      bloc.state.isAuthenticated ? AppRoutes.home : AppRoutes.signIn,
+    );
   }
 
   @override

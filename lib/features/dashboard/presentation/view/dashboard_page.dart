@@ -81,8 +81,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 return MonthlyLimitCard(
                   limit: limit,
                   spent: totalSpent,
-                  onEdit: () =>
-                      showMonthlyLimitDialog(context, current: limit),
+                  onEdit: () => showMonthlyLimitDialog(context, current: limit),
                 );
               },
             ),

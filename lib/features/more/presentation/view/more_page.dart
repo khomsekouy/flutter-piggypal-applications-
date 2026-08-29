@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/account/data/profile_store.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:flutter_piggypal_app/features/languages/presentation/language_scope.dart';
 import 'package:flutter_piggypal_app/features/languages/presentation/widgets/language_menu_button.dart';
 import 'package:flutter_piggypal_app/features/notification/presentation/widgets/notification_bell.dart';
@@ -285,39 +287,41 @@ class MorePage extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Column(
             children: [
-              for (final (i, s) in <
-                ({
-                  String label,
-                  IconData icon,
-                  VoidCallback? onTap,
-                  bool unreadBadge,
-                })
-              >[
-                (
-                  label: 'Organization profile',
-                  icon: Icons.grid_view_rounded,
-                  onTap: null,
-                  unreadBadge: false,
-                ),
-                (
-                  label: 'Team & permissions',
-                  icon: Icons.people_outline,
-                  onTap: null,
-                  unreadBadge: false,
-                ),
-                (
-                  label: 'Tax & currency',
-                  icon: Icons.sell_outlined,
-                  onTap: null,
-                  unreadBadge: false,
-                ),
-                (
-                  label: 'Notifications',
-                  icon: Icons.notifications_outlined,
-                  onTap: () => nav.push(TFScreens.notifications),
-                  unreadBadge: true,
-                ),
-              ].indexed)
+              for (final (i, s)
+                  in <
+                        ({
+                          String label,
+                          IconData icon,
+                          VoidCallback? onTap,
+                          bool unreadBadge,
+                        })
+                      >[
+                        (
+                          label: 'Organization profile',
+                          icon: Icons.grid_view_rounded,
+                          onTap: null,
+                          unreadBadge: false,
+                        ),
+                        (
+                          label: 'Team & permissions',
+                          icon: Icons.people_outline,
+                          onTap: null,
+                          unreadBadge: false,
+                        ),
+                        (
+                          label: 'Tax & currency',
+                          icon: Icons.sell_outlined,
+                          onTap: null,
+                          unreadBadge: false,
+                        ),
+                        (
+                          label: 'Notifications',
+                          icon: Icons.notifications_outlined,
+                          onTap: () => nav.push(TFScreens.notifications),
+                          unreadBadge: true,
+                        ),
+                      ]
+                      .indexed)
                 TFRow(
                   first: i == 0,
                   onTap: s.onTap,
@@ -419,8 +423,15 @@ Future<void> _confirmSignOut(BuildContext context) async {
   );
   if (!(ok ?? false)) return;
   if (!context.mounted) return;
-  // TODO(auth): clear the persisted session before leaving.
-  //
+
+  // Revokes this device's session server-side (`POST /auth/logout`) and drops
+  // the stored tokens. Not awaited: the tokens are cleared either way, and
+  // holding the user on this screen while a round trip finishes would mean a
+  // flaky connection could keep them signed in.
+  context.read<AuthenticationBloc>().add(
+    const AuthenticationSignOutRequested(),
+  );
+
   // `goNamed`, not `nav.back()` — signing out has to leave the module
   // entirely. TFNav only pops within the shell, which would drop the user back
   // on the previous tab still signed in. `go` also replaces the route stack, so

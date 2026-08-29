@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Talking to the PiggyPal API. Only the debug and profile manifests
+         carried this before, so a release build had no network at all. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="${appName}"
         android:name="${applicationName}"

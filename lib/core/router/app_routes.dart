@@ -23,11 +23,17 @@ abstract final class AppRoutes {
   static const createAccount = 'create-account';
   static const createAccountPath = '/create-account';
 
-  /// Second step of sign-up: the optional profile photo. Expects the `phone`
-  /// query parameter from step one, plus an optional `name` used for the
-  /// initials placeholder.
+  /// Last step of sign-up: the optional profile photo, uploaded onto the
+  /// account the first screen already created. Needs a session, nothing else.
   static const profilePhoto = 'profile-photo';
   static const profilePhotoPath = '/profile-photo';
+
+  /// Step one of phone verification: shows the number on the account and
+  /// asks the server to text a code to it. Reached once the account exists
+  /// (the first screen of sign-up creates it), and reads the number from the
+  /// session — nothing to pass.
+  static const verifyPhone = 'verify-phone';
+  static const verifyPhonePath = '/verify-phone';
 
   /// Phone-number verification. Expects a `phone` query parameter, plus an
   /// optional `purpose` (`sign-up`, the default, or `password-reset`) that

@@ -161,7 +161,6 @@ class AccountPage extends StatelessWidget {
         const SnackBar(content: Text('Coming soon')),
       );
   }
-
 }
 
 /// A read-only label-over-value row with a leading icon.

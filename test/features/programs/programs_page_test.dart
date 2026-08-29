@@ -1,4 +1,3 @@
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/database/app_database.dart';
 import 'package:flutter_piggypal_app/core/di/injection_container.dart';
@@ -10,12 +9,10 @@ import '../../helpers/helpers.dart';
 
 void main() {
   setUp(() async {
-    await sl.reset();
     // In-memory DB; initDependencies seeds the programs table from the design
-    // dataset, so the wired list has content.
-    await initDependencies(
-      database: AppDatabase.forTesting(NativeDatabase.memory()),
-    );
+    // dataset, so the wired list has content. The auth calls the sign-in step
+    // makes on the way to home are served by the fake API.
+    await setUpDependencies();
   });
 
   tearDown(() async {
@@ -23,8 +20,9 @@ void main() {
     await sl.reset();
   });
 
-  testWidgets('Programs tab renders Drift-seeded programs via the bloc',
-      (tester) async {
+  testWidgets('Programs tab renders Drift-seeded programs via the bloc', (
+    tester,
+  ) async {
     await tester.pumpAppToHome();
 
     // Navigate to the Programs tab (bottom-nav label).

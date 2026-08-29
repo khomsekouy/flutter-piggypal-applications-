@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_step_indicator.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/profile_photo_picker.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/requires_session.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -15,26 +18,23 @@ import 'package:image_picker/image_picker.dart';
 /// Injectable so widget tests don't need the platform channel.
 typedef PickImage = Future<XFile?> Function(ImageSource source);
 
-/// Second and last step of sign-up: an **optional** profile photo.
+/// Last step of sign-up: an **optional** profile photo.
 ///
-/// Reached from [AppRoutes.createAccount] with the details already collected.
-/// The photo is a nicety, so this screen can always be cleared — "Continue"
-/// with a picture, "Skip for now" without one; both land on number
-/// verification.
+/// The account already exists by the time anyone gets here — it is created on
+/// the first screen, because the number cannot be verified without a session
+/// to send the code to. So the picture is its own request,
+/// `PATCH /users/me` with a multipart `avatar` part, rather than something
+/// that rides along with registration.
+///
+/// Which also means nothing here can fail the sign-up. "Continue" uploads the
+/// picture and goes home; "Skip" just goes home; an upload that fails says so
+/// and leaves the account exactly as it was, with a photo the user can add
+/// later from their profile.
 class ProfilePhotoPage extends StatefulWidget {
   const ProfilePhotoPage({
-    required this.phoneNumber,
     super.key,
-    this.fullName = '',
     this.pickImage,
   });
-
-  /// The number from step one, already formatted with its dial code. Carried
-  /// through so verification knows where to send the code.
-  final String phoneNumber;
-
-  /// The name from step one. Only used for the initials placeholder.
-  final String fullName;
 
   /// Overrides the real gallery/camera picker. Tests pass a stub; production
   /// leaves it null and gets [ImagePicker].
@@ -47,7 +47,10 @@ class ProfilePhotoPage extends StatefulWidget {
 class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
   /// The picked image, held as bytes so the preview works everywhere.
   Uint8List? _photo;
-  bool _isSubmitting = false;
+
+  /// The picked file's name, forwarded as the multipart part's filename so the
+  /// server stores it with the right extension.
+  String? _photoName;
 
   /// Downscaled on the way in: this only ever renders as a small avatar, and
   /// a full-resolution camera shot would be megabytes to hold and upload.
@@ -66,7 +69,10 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
       if (file == null || !mounted) return;
       final bytes = await file.readAsBytes();
       if (!mounted) return;
-      setState(() => _photo = bytes);
+      setState(() {
+        _photo = bytes;
+        _photoName = file.name;
+      });
     } on PlatformException catch (_) {
       if (!mounted) return;
       // Most often a denied camera/photos permission, which only the user can
@@ -94,7 +100,7 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
   }
 
   void _openPhotoSourceSheet() {
-    if (_isSubmitting) return;
+    if (context.read<AuthenticationBloc>().state.isBusy) return;
     unawaited(
       showModalBottomSheet<void>(
         context: context,
@@ -139,7 +145,10 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
                   color: AppColors.error,
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    setState(() => _photo = null);
+                    setState(() {
+                      _photo = null;
+                      _photoName = null;
+                    });
                   },
                 ),
               const SizedBox(height: 12),
@@ -150,45 +159,82 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
     );
   }
 
-  /// Drops a photo picked before the user changed their mind, then finishes.
-  Future<void> _skip() async {
-    if (_isSubmitting) return;
-    setState(() => _photo = null);
-    await _finish();
+  /// Nothing to upload — straight in, photo or not.
+  void _skip() {
+    if (context.read<AuthenticationBloc>().state.isBusy) return;
+    context.goNamed(AppRoutes.home);
   }
 
-  /// Finishes sign-up with whatever photo is in hand and moves on to
-  /// verification.
-  Future<void> _finish() async {
-    if (_isSubmitting) return;
-    setState(() => _isSubmitting = true);
-    // TODO(auth): replace with the real sign-up call — the details from step
-    // one plus `_photo` when it is non-null; today this only simulates the
-    // round trip.
-    await Future<void>.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    setState(() => _isSubmitting = false);
-    unawaited(
-      context.pushNamed(
-        AppRoutes.verifyNumber,
-        queryParameters: {'phone': widget.phoneNumber},
+  /// Uploads whatever photo is in hand, then goes home. With no photo picked
+  /// there is nothing to send, so this is [_skip].
+  void _finish() {
+    final bloc = context.read<AuthenticationBloc>();
+    if (bloc.state.isBusy) return;
+
+    final photo = _photo;
+    if (photo == null) {
+      _skip();
+      return;
+    }
+    _isUploading = true;
+    bloc.add(
+      AuthenticationProfilePhotoUpdated(
+        avatar: photo,
+        avatarFileName: _photoName,
       ),
     );
   }
 
-  /// Back to step one, or to sign-in when this page was opened as a deep link
-  /// with nothing to pop.
-  void _back() {
-    if (_isSubmitting) return;
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.goNamed(AppRoutes.signIn);
+  /// True between dispatching the upload and hearing back, so an unrelated
+  /// emission — a background profile refresh, say — cannot be mistaken for
+  /// this screen's request finishing.
+  bool _isUploading = false;
+
+  void _onAuthStateChanged(BuildContext context, AuthenticationState state) {
+    final message = state.errorMessage;
+    if (message != null) {
+      _showMessage(message);
+      context.read<AuthenticationBloc>().add(
+        const AuthenticationErrorDismissed(),
+      );
     }
+
+    if (state.isBusy || !_isUploading) return;
+    _isUploading = false;
+
+    // Home either way. A picture that would not upload is worth saying so
+    // (the message above did), not worth holding a finished sign-up hostage —
+    // it can be added later from the profile screen.
+    context.goNamed(AppRoutes.home);
+  }
+
+  /// There is nothing behind this screen worth going back to — the account is
+  /// made and the number is settled — so back means the same as skip.
+  void _back() {
+    if (context.read<AuthenticationBloc>().state.isBusy) return;
+    _skip();
   }
 
   @override
   Widget build(BuildContext context) {
+    return RequiresSession(
+      builder: (context, user) =>
+          BlocConsumer<AuthenticationBloc, AuthenticationState>(
+            listener: _onAuthStateChanged,
+            builder: (context, state) =>
+                // The name itself, not `displayName`: an account with no name
+                // should fall back to the person glyph, and `displayName`
+                // would hand over a phone number to make initials out of.
+                _buildPage(context, user.name ?? '', state.isBusy),
+          ),
+    );
+  }
+
+  Widget _buildPage(
+    BuildContext context,
+    String accountName,
+    bool isSubmitting,
+  ) {
     final hasPhoto = _photo != null;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -209,7 +255,7 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
                 Center(
                   child: ProfilePhotoPicker(
                     photo: _photo,
-                    initials: initialsOf(widget.fullName),
+                    initials: initialsOf(accountName),
                     onTap: _openPhotoSourceSheet,
                   ),
                 ),
@@ -234,11 +280,11 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const AuthStepIndicator(step: 2, totalSteps: 2),
+                const AuthStepIndicator(step: 4, totalSteps: 4),
                 const SizedBox(height: 24),
                 Center(
                   child: TextButton.icon(
-                    onPressed: _isSubmitting ? null : _openPhotoSourceSheet,
+                    onPressed: isSubmitting ? null : _openPhotoSourceSheet,
                     icon: Icon(
                       hasPhoto ? Icons.swap_horiz : Icons.add_a_photo_outlined,
                       size: 18,
@@ -257,14 +303,14 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
                 GradientButton(
                   label: hasPhoto ? 'Continue' : 'Continue without a photo',
                   icon: Icons.arrow_forward_rounded,
-                  isLoading: _isSubmitting,
-                  onPressed: _finish,
+                  isLoading: isSubmitting,
+                  onPressed: isSubmitting ? null : _finish,
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
                   height: 48,
                   child: TextButton(
-                    onPressed: _isSubmitting ? null : _skip,
+                    onPressed: isSubmitting ? null : _skip,
                     child: const Text(
                       'Skip',
                       style: TextStyle(

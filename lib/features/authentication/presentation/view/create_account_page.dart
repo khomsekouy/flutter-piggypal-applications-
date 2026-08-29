@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/utils/password_rules.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/app_text_field.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
@@ -101,21 +103,59 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       ) &&
       _agreedToTerms;
 
-  /// Hands the collected details to step two (the optional profile photo),
-  /// which is where the account is actually created. Nothing is sent yet, so
-  /// this is a plain push rather than an awaited request.
+  /// Creates the account. `POST /auth/register` goes out from here, and the
+  /// session it answers with is what the rest of sign-up runs on: the number
+  /// cannot be verified without one, because the API sends codes only to the
+  /// number on the caller's own session.
+  ///
+  /// The photo comes later, on the last screen, and is a separate request —
+  /// there is no registration call left to attach it to by then.
   void _handleNext() {
-    if (!_canSubmit) return;
+    final bloc = context.read<AuthenticationBloc>();
+    if (!_canSubmit || bloc.state.isBusy) return;
     FocusScope.of(context).unfocus();
-    unawaited(
-      context.pushNamed(
-        AppRoutes.profilePhoto,
-        queryParameters: {
-          'phone': '${PhoneNumberField.dialCode} $_digits',
-          'name': _nameController.text.trim(),
-        },
+    bloc.add(
+      AuthenticationSignUpRequested(
+        countryCode: PhoneNumberField.dialCode,
+        phone: _digits,
+        password: _passwordController.text,
+        name: _nameController.text.trim(),
       ),
     );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.surface,
+          content: Text(
+            message,
+            style: const TextStyle(color: AppColors.textPrimary),
+          ),
+        ),
+      );
+  }
+
+  void _onAuthStateChanged(BuildContext context, AuthenticationState state) {
+    final message = state.errorMessage;
+    if (message != null) {
+      _showMessage(message);
+      context.read<AuthenticationBloc>().add(
+        const AuthenticationErrorDismissed(),
+      );
+    }
+
+    // Registering signs the account in, so what is left is proving the
+    // number — the step that needed this session to exist at all.
+    if (state.isAuthenticated) {
+      if (state.user?.phoneVerified ?? false) {
+        context.goNamed(AppRoutes.profilePhoto);
+      } else {
+        context.goNamed(AppRoutes.verifyPhone);
+      }
+    }
   }
 
   /// Pops back to sign-in, or navigates there outright when this page was
@@ -167,6 +207,13 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
 
   @override
   Widget build(BuildContext context) {
+    return BlocConsumer<AuthenticationBloc, AuthenticationState>(
+      listener: _onAuthStateChanged,
+      builder: (context, state) => _buildPage(context, state.isBusy),
+    );
+  }
+
+  Widget _buildPage(BuildContext context, bool isSubmitting) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -214,7 +261,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const AuthStepIndicator(step: 1, totalSteps: 2),
+                const AuthStepIndicator(step: 1, totalSteps: 4),
                 const SizedBox(height: 24),
                 AppTextField(
                   label: 'Full name',
@@ -334,8 +381,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 GradientButton(
                   label: 'Next',
                   icon: Icons.arrow_forward_rounded,
-                  isLoading: false,
-                  onPressed: _canSubmit ? _handleNext : null,
+                  isLoading: isSubmitting,
+                  onPressed: _canSubmit && !isSubmitting ? _handleNext : null,
                 ),
                 const SizedBox(height: 20),
                 Center(
