@@ -90,7 +90,12 @@ class MorePage extends StatelessWidget {
             onTap: () => nav.push(TFScreens.account),
             child: Row(
               children: [
-                TFAvatar(name: p.name, hue: p.hue, size: 52),
+                TFAvatar(
+                  name: p.name,
+                  hue: p.hue,
+                  size: 52,
+                  imageUrl: p.avatarUrl,
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(

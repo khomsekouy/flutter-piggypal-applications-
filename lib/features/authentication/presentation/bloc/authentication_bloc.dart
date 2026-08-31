@@ -113,7 +113,7 @@ class AuthenticationBloc
         password: event.password,
       ),
     );
-    emit(_sessionOutcome(result));
+    await _emitSession(result, emit);
   }
 
   Future<void> _onSignUpRequested(
@@ -130,7 +130,7 @@ class AuthenticationBloc
         name: event.name,
       ),
     );
-    emit(_sessionOutcome(result));
+    await _emitSession(result, emit);
   }
 
   /// Unlike the other calls here, a failure leaves the session alone: the
@@ -233,6 +233,38 @@ class AuthenticationBloc
   Future<void> close() {
     unawaited(_expirySubscription.cancel());
     return super.close();
+  }
+
+  /// Emits the new session, then fills in the half of the profile it does not
+  /// carry.
+  ///
+  /// `POST /auth/login` and `POST /auth/register` answer with the API's
+  /// `publicUser`: id, phone, email, name, avatarUrl, and nothing else. The
+  /// five fields left out — `currency`, `status`, `phoneVerified`,
+  /// `emailVerified`, `createdAt` — do not arrive as "unknown" but as `null`
+  /// and `false`, which reads as an unverified account that joined on no date.
+  /// That is why a fresh sign-in used to leave the account screen showing its
+  /// placeholder join date until the next launch, where
+  /// [AuthenticationStarted] reads `GET /users/me` and silently corrects it.
+  ///
+  /// So the profile is read here as well, and the session is emitted first and
+  /// kept whatever that read does: the tokens are already stored and the
+  /// account is signed in, so a profile that will not load is a thinner
+  /// screen, never a reason to send the user back to sign-in.
+  Future<void> _emitSession(
+    Either<Failure, AuthSession> result,
+    Emitter<AuthenticationState> emit,
+  ) async {
+    final session = _sessionOutcome(result);
+    emit(session);
+    if (session.status != AuthenticationStatus.authenticated) return;
+
+    final profile = await _getCurrentUser(const NoParams());
+    // Closed while the profile was in flight — nothing left to emit into.
+    if (emit.isDone) return;
+
+    final user = profile.toNullable();
+    if (user != null) emit(state.copyWith(user: user));
   }
 
   AuthenticationState _sessionOutcome(

@@ -38,7 +38,12 @@ class AccountPage extends StatelessWidget {
             Center(
               child: Column(
                 children: [
-                  TFAvatar(name: p.name, hue: p.hue, size: 88),
+                  TFAvatar(
+                    name: p.name,
+                    hue: p.hue,
+                    size: 88,
+                    imageUrl: p.avatarUrl,
+                  ),
                   const SizedBox(height: 14),
                   Text(
                     p.name,

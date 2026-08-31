@@ -29,11 +29,48 @@ Exception mapDioException(DioException error) {
           message ?? 'Your session has expired. Please sign in again.',
         );
       }
+      if (status == 429) {
+        return ServerException(throttledMessage(response), statusCode: status);
+      }
       return ServerException(
         message ?? 'The server could not complete that request.',
         statusCode: status,
       );
   }
+}
+
+/// Copy for a 429, written here because the API never writes its own.
+///
+/// The body's `message` is dropped on purpose: NestJS's throttler answers with
+/// a fixed `ThrottlerException: Too Many Requests`, the class name of a
+/// framework internal, and putting that in a snackbar is how the resend on
+/// `verify-phone/request` used to read. It does send `Retry-After`, so when
+/// the header is there the wait can be named instead of guessed at.
+String throttledMessage(Response<dynamic>? response) {
+  final seconds = _retryAfterSeconds(response);
+  if (seconds == null || seconds <= 0) {
+    return 'Too many attempts. Please wait a few minutes and try again.';
+  }
+  if (seconds < 60) {
+    final unit = seconds == 1 ? 'second' : 'seconds';
+    return 'Too many attempts. Try again in $seconds $unit.';
+  }
+  // Rounded up, so the number never tells the user to retry early.
+  final minutes = (seconds / 60).ceil();
+  final unit = minutes == 1 ? 'minute' : 'minutes';
+  return 'Too many attempts. Try again in $minutes $unit.';
+}
+
+/// `Retry-After` as whole seconds, or null when it is absent or a date.
+///
+/// Read through `[]` rather than `Headers.value`, which throws when a header
+/// arrives twice — nothing in a function that maps an error may itself throw.
+/// The HTTP-date form is legal but not one this API sends; it parses as null
+/// here, which lands on the generic wording.
+int? _retryAfterSeconds(Response<dynamic>? response) {
+  final values = response?.headers['retry-after'];
+  if (values == null || values.isEmpty) return null;
+  return int.tryParse(values.first.trim());
 }
 
 /// Pulls the human-readable text out of a NestJS error body.
