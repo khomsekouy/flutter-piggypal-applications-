@@ -112,6 +112,8 @@ class FakeAuthApi implements HttpClientAdapter {
   /// does, without telling the client.
   void expireAccessToken() => liveAccessToken = 'server-rotated-access-token';
 
+  /// The profile as `GET /users/me` and `PATCH /users/me` return it — every
+  /// column the API exposes.
   Map<String, dynamic> get user => <String, dynamic>{
     'id': 'user-1',
     'phone': '+85512345678',
@@ -125,9 +127,32 @@ class FakeAuthApi implements HttpClientAdapter {
     'createdAt': '2026-01-15T08:00:00.000Z',
   };
 
-  FakeRequest? requestTo(String path) {
+  /// The thinner user that rides along with a session, mirroring the API's
+  /// `publicUser`: five fields, and none of the profile-only ones.
+  ///
+  /// Deliberately not [user]. Answering a login with the full profile is what
+  /// hid the gap this fake exists to catch — the client cannot tell an absent
+  /// `phoneVerified` from a false one, so a login that over-reports leaves
+  /// every test agreeing with a screen that would be wrong in production.
+  Map<String, dynamic> get sessionUser => <String, dynamic>{
+    'id': user['id'],
+    'phone': user['phone'],
+    'email': user['email'],
+    'name': userName,
+    'avatarUrl': avatarUrl,
+  };
+
+  /// The first request to [path], optionally narrowed to one [method].
+  ///
+  /// The narrowing earns its keep on `/users/me`, which is both read and
+  /// written: sign-in reads it to fill in the fields the login body leaves
+  /// out, so a test about the avatar upload has to say it means the PATCH.
+  FakeRequest? requestTo(String path, {String? method}) {
     for (final request in requests) {
-      if (request.path.endsWith(path)) return request;
+      if (request.path.endsWith(path) &&
+          (method == null || request.method == method)) {
+        return request;
+      }
     }
     return null;
   }
@@ -299,7 +324,7 @@ class FakeAuthApi implements HttpClientAdapter {
     return _json({
       'accessToken': liveAccessToken,
       'refreshToken': liveRefreshToken,
-      'user': user,
+      'user': sessionUser,
     }, 200);
   }
 
@@ -313,7 +338,7 @@ class FakeAuthApi implements HttpClientAdapter {
     'message': message,
     'accessToken': liveAccessToken,
     'refreshToken': liveRefreshToken,
-    'user': user,
+    'user': sessionUser,
   };
 
   ResponseBody _json(Map<String, dynamic> body, int status) =>

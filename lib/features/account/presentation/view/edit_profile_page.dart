@@ -74,10 +74,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 name: name.isEmpty ? '?' : name,
                 hue: _initial.hue,
                 size: 80,
+                imageUrl: _initial.avatarUrl,
               ),
               const SizedBox(height: 10),
               Text(
-                'Initials avatar',
+                // The label describes what is actually on screen: this form
+                // edits text only, so an account with a picture is not being
+                // offered a choice of initials.
+                _initial.avatarUrl == null
+                    ? 'Initials avatar'
+                    : 'Profile picture',
                 style: TFText.sans(size: 12, color: c.textDim),
               ),
             ],

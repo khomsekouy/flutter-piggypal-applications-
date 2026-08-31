@@ -123,6 +123,45 @@ void main() {
       ),
       expect: () => [
         const AuthenticationState(status: AuthenticationStatus.loading),
+        // The login body alone: five fields, so the profile-only ones are
+        // still at their defaults.
+        isA<AuthenticationState>()
+            .having((s) => s.isAuthenticated, 'isAuthenticated', true)
+            .having((s) => s.user?.phone, 'phone', '+85512345678')
+            .having((s) => s.user?.createdAt, 'createdAt', isNull),
+        // Then `GET /users/me` fills in the rest, which is the whole point:
+        // without it the account screen renders a join date nobody has.
+        isA<AuthenticationState>()
+            .having((s) => s.isAuthenticated, 'isAuthenticated', true)
+            .having((s) => s.user?.currency, 'currency', 'USD')
+            .having((s) => s.user?.status, 'status', 'active')
+            .having((s) => s.user?.phoneVerified, 'phoneVerified', true)
+            .having(
+              (s) => s.user?.createdAt,
+              'createdAt',
+              DateTime.utc(2026, 1, 15, 8).toLocal(),
+            ),
+      ],
+      verify: (_) => expect(api.called('/users/me'), isTrue),
+    );
+
+    blocTest<AuthenticationBloc, AuthenticationState>(
+      'stays signed in when the profile read fails',
+      setUp: () => api.rejectCurrentUser = true,
+      build: buildBloc,
+      wait: const Duration(milliseconds: 100),
+      act: (bloc) => bloc.add(
+        const AuthenticationSignInRequested(
+          countryCode: '+855',
+          phone: '97573235',
+          password: 'Passw0rd!23',
+        ),
+      ),
+      // One state, not two: the tokens are stored and the account is signed
+      // in, so a profile that will not load costs the user some fields, never
+      // the session.
+      expect: () => [
+        const AuthenticationState(status: AuthenticationStatus.loading),
         isA<AuthenticationState>()
             .having((s) => s.isAuthenticated, 'isAuthenticated', true)
             .having((s) => s.user?.phone, 'phone', '+85512345678'),
@@ -169,6 +208,12 @@ void main() {
         (s) => s.isAuthenticated,
         'isAuthenticated',
         true,
+      ),
+      // Registering reads the profile for the same reason signing in does.
+      isA<AuthenticationState>().having(
+        (s) => s.user?.currency,
+        'currency',
+        'USD',
       ),
     ],
     verify: (_) => expect(api.called('/auth/register'), isTrue),

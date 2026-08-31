@@ -142,18 +142,33 @@ class TFStatusPill extends StatelessWidget {
   }
 }
 
-/// Initials avatar, optionally hue-tinted.
+/// Initials avatar, optionally hue-tinted — or the uploaded picture, when
+/// [imageUrl] names one.
+///
+/// The initials are not a placeholder that the picture replaces so much as the
+/// floor beneath it: they are painted first and stay visible while the image
+/// loads, and an image that never arrives — offline, a dead URL, an API whose
+/// `PUBLIC_URL` points somewhere this phone cannot reach — leaves them exactly
+/// as they were rather than a broken-image glyph.
+///
+/// Only the signed-in account has a picture to show. The other faces in the
+/// app come from the training-finance seed data, which has no URLs, so they
+/// pass none and keep the initials.
 class TFAvatar extends StatelessWidget {
   const TFAvatar({
     required this.name,
     this.hue = 250,
     this.size = 40,
+    this.imageUrl,
     super.key,
   });
 
   final String name;
   final double hue;
   final double size;
+
+  /// Absolute URL of the account's uploaded picture, if it has one.
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -164,21 +179,46 @@ class TFAvatar extends StatelessWidget {
         .map((w) => w[0])
         .take(2)
         .join();
+    final radius = BorderRadius.circular(size * 0.32);
+    final url = imageUrl?.trim();
+
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: tfCatSoft(hue),
-        borderRadius: BorderRadius.circular(size * 0.32),
-      ),
-      child: Text(
-        initials,
-        style: TFText.num(
-          size: size * 0.36,
-          color: tfCatColor(hue),
-          letterSpacing: -0.3,
-        ),
+      decoration: BoxDecoration(color: tfCatSoft(hue), borderRadius: radius),
+      child: Stack(
+        alignment: Alignment.center,
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: Text(
+              initials,
+              style: TFText.num(
+                size: size * 0.36,
+                color: tfCatColor(hue),
+                letterSpacing: -0.3,
+              ),
+            ),
+          ),
+          if (url != null && url.isNotEmpty)
+            ClipRRect(
+              borderRadius: radius,
+              child: Image.network(
+                url,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                // Both builders fall through to the initials underneath, so
+                // there is nothing to draw and nothing to say.
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                frameBuilder: (_, child, frame, wasSynchronous) =>
+                    wasSynchronous || frame != null
+                    ? child
+                    : const SizedBox.shrink(),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -143,7 +143,7 @@ void main() {
       // still here, with the reason.
       expect(find.text('Step 2 of 4'), findsOneWidget);
       expect(
-        find.textContaining('Too Many Requests'),
+        find.textContaining('Too many attempts'),
         findsOneWidget,
       );
     });

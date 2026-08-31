@@ -231,8 +231,7 @@ void main() {
 
       await uploadAndSettle(tester);
 
-      final request = api.requestTo('/users/me')!;
-      expect(request.method, 'PATCH');
+      final request = api.requestTo('/users/me', method: 'PATCH')!;
       // A file part and only a file part — this API refuses an `avatarUrl`.
       expect(request.fileParts, ['avatar']);
       expect(find.text('home stub'), findsOneWidget);

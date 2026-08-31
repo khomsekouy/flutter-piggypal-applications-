@@ -9,6 +9,7 @@ class Profile {
     required this.role,
     required this.location,
     required this.joined,
+    this.avatarUrl,
     this.hue = 262,
   });
 
@@ -23,6 +24,11 @@ class Profile {
   /// Human-readable join date ("March 2023").
   final String joined;
 
+  /// Absolute URL of the uploaded profile picture, served from the API's
+  /// `/uploads`. Null for an account that has never uploaded one, or has
+  /// cleared it — the screens fall back to the initials avatar.
+  final String? avatarUrl;
+
   /// Category hue for the avatar tint.
   final double hue;
 
@@ -33,7 +39,9 @@ class Profile {
     String? role,
     String? location,
     String? joined,
+    String? avatarUrl,
     double? hue,
+    bool clearAvatarUrl = false,
   }) => Profile(
     name: name ?? this.name,
     email: email ?? this.email,
@@ -41,6 +49,10 @@ class Profile {
     role: role ?? this.role,
     location: location ?? this.location,
     joined: joined ?? this.joined,
+    // As with `AuthenticationState.clearUser`: a null cannot mean "remove it"
+    // here, being the same null as "leave it alone". Clearing is a real case —
+    // the API's `removeAvatar`, and signing in as an account with no picture.
+    avatarUrl: clearAvatarUrl ? null : (avatarUrl ?? this.avatarUrl),
     hue: hue ?? this.hue,
   );
 }

@@ -115,5 +115,10 @@ void _syncProfile(AuthUser? user) {
     joined: user.createdAt == null
         ? store.current.joined
         : DateFormat('MMMM yyyy').format(user.createdAt!),
+    avatarUrl: user.avatarUrl,
+    // Unlike `joined`, a missing picture is an answer rather than a gap: the
+    // account either has one or does not, so the seeded initials come back
+    // instead of the previous account's photo lingering.
+    clearAvatarUrl: user.avatarUrl == null,
   );
 }
