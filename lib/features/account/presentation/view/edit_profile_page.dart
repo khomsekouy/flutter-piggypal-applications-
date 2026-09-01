@@ -3,10 +3,10 @@ import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/account/data/profile_store.dart';
 import 'package:flutter_piggypal_app/features/account/presentation/widgets/account_fields.dart';
+import 'package:flutter_piggypal_app/features/account/presentation/widgets/profile_avatar_picker.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_app_bar.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_buttons.dart';
-import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_widgets.dart';
 
 /// Edit-profile form, seeded from [ProfileStore]. Saving writes back to the
 /// store (which re-renders the account screen) and pops. Front-end only.
@@ -66,24 +66,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
       bottomPadding: 120,
       header: TFBackBar(title: 'Edit Profile', onBack: widget.nav.back),
       children: [
-        // Avatar preview (updates live as the name changes).
+        // Avatar preview (updates live as the name changes) — and the one
+        // control on this form that is not text: tapping it picks a photo,
+        // which uploads on its own rather than waiting for Save.
         Center(
           child: Column(
             children: [
-              TFAvatar(
+              ProfileAvatarPicker(
                 name: name.isEmpty ? '?' : name,
                 hue: _initial.hue,
                 size: 80,
-                imageUrl: _initial.avatarUrl,
               ),
               const SizedBox(height: 10),
               Text(
-                // The label describes what is actually on screen: this form
-                // edits text only, so an account with a picture is not being
-                // offered a choice of initials.
-                _initial.avatarUrl == null
-                    ? 'Initials avatar'
-                    : 'Profile picture',
+                'Tap the photo to change it',
                 style: TFText.sans(size: 12, color: c.textDim),
               ),
             ],

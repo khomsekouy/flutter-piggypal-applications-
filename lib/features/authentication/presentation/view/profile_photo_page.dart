@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
+import 'package:flutter_piggypal_app/core/utils/profile_image_picker.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_step_indicator.dart';
@@ -12,11 +13,10 @@ import 'package:flutter_piggypal_app/features/authentication/presentation/widget
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/profile_photo_picker.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/requires_session.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
-/// Picks one image, or `null` when the user backs out of the picker.
-/// Injectable so widget tests don't need the platform channel.
-typedef PickImage = Future<XFile?> Function(ImageSource source);
+// The page owns the seam its tests inject, so it re-exports the typedef.
+export 'package:flutter_piggypal_app/core/utils/profile_image_picker.dart'
+    show CropImage, PickImage;
 
 /// Last step of sign-up: an **optional** profile photo.
 ///
@@ -34,11 +34,15 @@ class ProfilePhotoPage extends StatefulWidget {
   const ProfilePhotoPage({
     super.key,
     this.pickImage,
+    this.cropImage,
   });
 
   /// Overrides the real gallery/camera picker. Tests pass a stub; production
-  /// leaves it null and gets [ImagePicker].
+  /// leaves it null and gets the platform `ImagePicker`.
   final PickImage? pickImage;
+
+  /// Overrides the real cropper, for the same reason as [pickImage].
+  final CropImage? cropImage;
 
   @override
   State<ProfilePhotoPage> createState() => _ProfilePhotoPageState();
@@ -52,36 +56,32 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
   /// server stores it with the right extension.
   String? _photoName;
 
-  /// Downscaled on the way in: this only ever renders as a small avatar, and
-  /// a full-resolution camera shot would be megabytes to hold and upload.
-  static Future<XFile?> _defaultPickImage(ImageSource source) =>
-      ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-
-  Future<void> _pick(ImageSource source) async {
-    final pick = widget.pickImage ?? _defaultPickImage;
-    try {
-      final file = await pick(source);
-      if (file == null || !mounted) return;
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _photo = bytes;
-        _photoName = file.name;
-      });
-    } on PlatformException catch (_) {
-      if (!mounted) return;
-      // Most often a denied camera/photos permission, which only the user can
-      // undo — so say what to do rather than silently doing nothing.
-      _showMessage(
-        source == ImageSource.camera
-            ? 'Camera unavailable. Check the app permissions and try again.'
-            : 'Photos unavailable. Check the app permissions and try again.',
-      );
+  /// Asks where the picture should come from — camera or gallery — and keeps
+  /// whatever comes back. Removing is offered only once there is a photo to
+  /// remove; nothing is uploaded until "Continue".
+  Future<void> _choosePhoto() async {
+    if (context.read<AuthenticationBloc>().state.isBusy) return;
+    final result = await selectProfileImage(
+      context,
+      allowRemove: _photo != null,
+      pickImage: widget.pickImage,
+      cropImage: widget.cropImage,
+    );
+    if (!mounted) return;
+    switch (result) {
+      case ProfileImagePicked(:final bytes, :final fileName):
+        setState(() {
+          _photo = bytes;
+          _photoName = fileName;
+        });
+      case ProfileImageRemoved():
+        setState(() {
+          _photo = null;
+          _photoName = null;
+        });
+      case ProfileImageCancelled():
+        // Dismissed is nothing to say; a refused picker explains itself.
+        showProfileImageError(context, result);
     }
   }
 
@@ -97,66 +97,6 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
           ),
         ),
       );
-  }
-
-  void _openPhotoSourceSheet() {
-    if (context.read<AuthenticationBloc>().state.isBusy) return;
-    unawaited(
-      showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: AppColors.surface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (sheetContext) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceBorder,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 8),
-              _SheetAction(
-                icon: Icons.photo_camera_outlined,
-                label: 'Take a photo',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(_pick(ImageSource.camera));
-                },
-              ),
-              _SheetAction(
-                icon: Icons.photo_library_outlined,
-                label: 'Choose from gallery',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(_pick(ImageSource.gallery));
-                },
-              ),
-              if (_photo != null)
-                _SheetAction(
-                  icon: Icons.delete_outline,
-                  label: 'Remove photo',
-                  color: AppColors.error,
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    setState(() {
-                      _photo = null;
-                      _photoName = null;
-                    });
-                  },
-                ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   /// Nothing to upload — straight in, photo or not.
@@ -256,7 +196,7 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
                   child: ProfilePhotoPicker(
                     photo: _photo,
                     initials: initialsOf(accountName),
-                    onTap: _openPhotoSourceSheet,
+                    onTap: () => unawaited(_choosePhoto()),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -284,7 +224,9 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
                 const SizedBox(height: 24),
                 Center(
                   child: TextButton.icon(
-                    onPressed: isSubmitting ? null : _openPhotoSourceSheet,
+                    onPressed: isSubmitting
+                        ? null
+                        : () => unawaited(_choosePhoto()),
                     icon: Icon(
                       hasPhoto ? Icons.swap_horiz : Icons.add_a_photo_outlined,
                       size: 18,
@@ -326,30 +268,6 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// One row of the pick-a-source bottom sheet.
-class _SheetAction extends StatelessWidget {
-  const _SheetAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color = AppColors.textPrimary,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(label, style: TextStyle(color: color)),
-      onTap: onTap,
     );
   }
 }

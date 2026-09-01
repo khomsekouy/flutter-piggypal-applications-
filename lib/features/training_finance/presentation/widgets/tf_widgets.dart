@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
@@ -160,6 +162,7 @@ class TFAvatar extends StatelessWidget {
     this.hue = 250,
     this.size = 40,
     this.imageUrl,
+    this.imageBytes,
     super.key,
   });
 
@@ -169,6 +172,11 @@ class TFAvatar extends StatelessWidget {
 
   /// Absolute URL of the account's uploaded picture, if it has one.
   final String? imageUrl;
+
+  /// A picture held in memory — the one just picked from the camera or the
+  /// gallery. Drawn instead of [imageUrl] so a new photo shows the instant it
+  /// is chosen, rather than after the upload round-trips.
+  final Uint8List? imageBytes;
 
   @override
   Widget build(BuildContext context) {
@@ -201,7 +209,17 @@ class TFAvatar extends StatelessWidget {
               ),
             ),
           ),
-          if (url != null && url.isNotEmpty)
+          if (imageBytes case final bytes?)
+            ClipRRect(
+              borderRadius: radius,
+              child: Image.memory(
+                bytes,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+              ),
+            )
+          else if (url != null && url.isNotEmpty)
             ClipRRect(
               borderRadius: radius,
               child: Image.network(
