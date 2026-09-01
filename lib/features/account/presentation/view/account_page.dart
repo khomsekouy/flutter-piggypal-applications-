@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/account/data/profile_store.dart';
+import 'package:flutter_piggypal_app/features/account/presentation/widgets/profile_avatar_picker.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_app_bar.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_buttons.dart';
@@ -25,26 +26,23 @@ class AccountPage extends StatelessWidget {
       valueListenable: ProfileStore.instance.profile,
       builder: (context, p, _) {
         return TFScreen(
-          header: TFBackBar(
-            title: 'Account',
-            onBack: nav.back,
-            trailing: TFIconButton(
-              icon: Icons.edit_outlined,
-              onTap: () => nav.push(TFScreens.editProfile),
-            ),
-          ),
+          // No trailing edit action: the "Edit Profile" button below is the
+          // one way onto that form. Two controls opening the same screen only
+          // leaves the reader wondering how they differ.
+          header: TFBackBar(title: 'Account', onBack: nav.back),
           children: [
             // Profile hero.
             Center(
               child: Column(
                 children: [
-                  TFAvatar(
-                    name: p.name,
-                    hue: p.hue,
-                    size: 88,
-                    imageUrl: p.avatarUrl,
+                  ProfileAvatarPicker(name: p.name, hue: p.hue),
+                  const SizedBox(height: 6),
+                  // Says out loud what the camera badge only hints at.
+                  Text(
+                    'Tap to change photo',
+                    style: TFText.sans(size: 12, color: c.textDim),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   Text(
                     p.name,
                     style: TFText.sans(

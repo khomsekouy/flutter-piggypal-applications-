@@ -48,8 +48,12 @@ void main() {
     // the first screen of sign-up — so every test here starts signed in.
     // Awaited in `setUp` rather than in a test body: inside `testWidgets` the
     // binding runs its own clock, and a bloc's stream would never arrive.
+    /// Stands in for the native cropper the picked image is sent through.
+    late CropImage crop;
+
     setUp(() async {
       lastSource = null;
+      crop = stubCropper(_pngBytes, extension: '.png');
       api = await setUpDependencies()
         ..userName = 'Dara Sok';
       auth = sl<AuthenticationBloc>()
@@ -78,7 +82,8 @@ void main() {
           GoRoute(
             path: AppRoutes.profilePhotoPath,
             name: AppRoutes.profilePhoto,
-            builder: (_, _) => ProfilePhotoPage(pickImage: pickImage),
+            builder: (_, _) =>
+                ProfilePhotoPage(pickImage: pickImage, cropImage: crop),
           ),
           GoRoute(
             path: AppRoutes.homePath,
