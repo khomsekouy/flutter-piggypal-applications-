@@ -7,8 +7,10 @@ import 'package:flutter_piggypal_app/features/authentication/data/datasources/au
 import 'package:flutter_piggypal_app/features/authentication/data/repositories/authentication_repository_impl.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/repositories/authentication_repository.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/confirm_phone_verification.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/delete_account.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/get_current_user.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/request_phone_verification.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/restore_account.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_in.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_out.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_up.dart';
@@ -48,6 +50,8 @@ void initAuthentication({AuthTokenStore? tokenStore, Dio? dio}) {
         signOut: sl(),
         getCurrentUser: sl(),
         updateProfilePhoto: sl(),
+        deleteAccount: sl(),
+        restoreAccount: sl(),
         repository: sl(),
       ),
     )
@@ -65,6 +69,8 @@ void initAuthentication({AuthTokenStore? tokenStore, Dio? dio}) {
     ..registerLazySingleton(() => SignOut(sl()))
     ..registerLazySingleton(() => GetCurrentUser(sl()))
     ..registerLazySingleton(() => UpdateProfilePhoto(sl()))
+    ..registerLazySingleton(() => DeleteAccount(sl()))
+    ..registerLazySingleton(() => RestoreAccount(sl()))
     ..registerLazySingleton(() => RequestPhoneVerification(sl()))
     ..registerLazySingleton(() => ConfirmPhoneVerification(sl()))
     // Repository.

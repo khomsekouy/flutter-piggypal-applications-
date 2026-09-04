@@ -1,5 +1,6 @@
-import 'dart:typed_data';
+import 'dart:developer';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
@@ -228,8 +229,16 @@ class TFAvatar extends StatelessWidget {
                 height: size,
                 fit: BoxFit.cover,
                 // Both builders fall through to the initials underneath, so
-                // there is nothing to draw and nothing to say.
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                // there is nothing to draw. Nothing to say on screen either —
+                // but a stored URL that will not load means the account has
+                // lost its picture, and falling back this quietly is what let
+                // that go unnoticed. It costs a debug line to be able to see.
+                errorBuilder: (_, error, _) {
+                  if (kDebugMode) {
+                    log('✗ $url ($error)', name: 'avatar');
+                  }
+                  return const SizedBox.shrink();
+                },
                 frameBuilder: (_, child, frame, wasSynchronous) =>
                     wasSynchronous || frame != null
                     ? child

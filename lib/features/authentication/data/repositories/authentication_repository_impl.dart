@@ -7,6 +7,7 @@ import 'package:flutter_piggypal_app/core/utils/typedefs.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/datasources/auth_session_refresher.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/datasources/auth_token_store.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/datasources/authentication_remote_data_source.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/account_deletion.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_session.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_user.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/phone_verification_request.dart';
@@ -91,6 +92,11 @@ class AuthenticationRepositoryImpl implements AuthenticationRepository {
 
   @override
   ResultVoid signOut() async {
+    // First, before the token is even read: a rotation that is already in
+    // flight would otherwise land after the clear below and hand the device
+    // back a working session the user has just given up.
+    _session.abandon();
+
     final refreshToken = await _tokens.readRefreshToken();
 
     // Best effort: the server call revokes the session so the refresh token
@@ -112,6 +118,57 @@ class AuthenticationRepositoryImpl implements AuthenticationRepository {
       // This one does matter: tokens we failed to erase are still on the
       // device and still work.
       return Left(DatabaseFailure(e.message));
+    }
+  }
+
+  @override
+  ResultFuture<AccountDeletion> deleteAccount({
+    required String password,
+  }) async {
+    try {
+      final deletion = await _remote.deleteAccount(password: password);
+
+      // The server has already revoked every session; these are dead tokens
+      // and keeping them would only make the next request a pointless 401.
+      // A rotation in flight must not put them back either — the account is
+      // gone, which is a stronger version of signing out.
+      _session.abandon();
+      await _tokens.clear();
+      return Right(deletion);
+    } on UnauthorizedException catch (e) {
+      // The password, not the session: an expired token was refreshed and
+      // replayed a layer down before reaching here, and a dead refresh token
+      // would have cleared the session there. So the tokens stay — being
+      // signed out for a mistyped password is not the answer.
+      return Left(AuthFailure(e.message));
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
+    }
+  }
+
+  @override
+  ResultFuture<AuthSession> restoreAccount({
+    required String countryCode,
+    required String phone,
+    required String password,
+  }) async {
+    try {
+      final session = await _remote.restoreAccount(
+        countryCode: countryCode,
+        phone: phone,
+        password: password,
+        deviceId: await _tokens.deviceId(),
+        deviceName: _tokens.deviceName,
+      );
+      // Restoring answers with a session, exactly as sign-in does — the user
+      // is back in, with no second trip through the login screen.
+      await _tokens.saveTokens(
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      );
+      return Right(session);
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
     }
   }
 

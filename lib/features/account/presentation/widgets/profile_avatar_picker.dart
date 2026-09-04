@@ -20,6 +20,16 @@ import 'package:flutter_piggypal_app/features/training_finance/presentation/widg
 /// screen answers the tap at once. A failed upload puts the old picture back
 /// and says why. The uploaded URL arrives via the auth bloc → [ProfileStore],
 /// which is where the rest of the account screens read it from.
+///
+/// Optimistic only until the answer comes back, though. Once the upload
+/// returns a URL that URL is fetched, and it — not the local bytes — is what
+/// stays on screen. Holding the picked image on afterwards drew the photo
+/// whether or not the server had kept it, so an avatar the API had already
+/// lost looked exactly like one that worked and only fell back to initials on
+/// some later launch, with nothing said. A URL that will not load is now
+/// reported while the user is still standing in front of it.
+typedef VerifyImage = Future<bool> Function(String url);
+
 class ProfileAvatarPicker extends StatefulWidget {
   const ProfileAvatarPicker({
     required this.name,
@@ -27,6 +37,7 @@ class ProfileAvatarPicker extends StatefulWidget {
     this.size = 88,
     this.pickImage,
     this.cropImage,
+    this.verifyImage,
     super.key,
   });
 
@@ -44,14 +55,24 @@ class ProfileAvatarPicker extends StatefulWidget {
   /// Overrides the real cropper, for the same reason as [pickImage].
   final CropImage? cropImage;
 
+  /// Overrides the check that the uploaded URL actually resolves to an image.
+  /// Tests pass a stub — under `flutter_test` every HTTP request answers 400,
+  /// so a real fetch could only ever fail — and production leaves it null.
+  final VerifyImage? verifyImage;
+
   @override
   State<ProfileAvatarPicker> createState() => _ProfileAvatarPickerState();
 }
 
 class _ProfileAvatarPickerState extends State<ProfileAvatarPicker> {
-  /// The picked image, drawn over whatever the account's stored URL is until
-  /// (and after) the upload lands. Null means "show the stored picture".
+  /// The picked image, drawn over whatever the account's stored URL is while
+  /// the upload is in flight. Cleared once the server has answered, either way
+  /// — see [_settleUpload]. Null means "show the stored picture".
   Uint8List? _preview;
+
+  /// Counts the uploads this widget has started, so the check that follows one
+  /// cannot clear a preview belonging to the next.
+  int _uploads = 0;
 
   /// True between dispatching the upload and hearing back, so an unrelated
   /// emission — a background profile refresh, say — cannot be mistaken for
@@ -79,6 +100,7 @@ class _ProfileAvatarPickerState extends State<ProfileAvatarPicker> {
         setState(() {
           _preview = bytes;
           _isUploading = true;
+          _uploads += 1;
         });
         context.read<AuthenticationBloc>().add(
           AuthenticationProfilePhotoUpdated(
@@ -111,14 +133,58 @@ class _ProfileAvatarPickerState extends State<ProfileAvatarPicker> {
       if (error != null) _preview = null;
     });
 
-    if (error == null) {
-      _showMessage('Profile photo updated');
+    if (error != null) {
+      _showMessage(error);
+      context.read<AuthenticationBloc>().add(
+        const AuthenticationErrorDismissed(),
+      );
       return;
     }
-    _showMessage(error);
-    context.read<AuthenticationBloc>().add(
-      const AuthenticationErrorDismissed(),
+
+    unawaited(_settleUpload(state.user?.avatarUrl));
+  }
+
+  /// Hands the avatar back to the URL the account now stores, and says so when
+  /// that URL turns out to be worth nothing.
+  ///
+  /// A 200 from `PATCH /users/me` only means the row was written. The picture
+  /// itself lives wherever the API put it, and that is a separate thing that
+  /// can be missing — the file never written, the host's disk discarded on the
+  /// next restart, the URL built against the wrong public base. Fetching it
+  /// once is what tells those apart from a working upload, and warms the cache
+  /// so the swap away from the preview does not flash.
+  Future<void> _settleUpload(String? url) async {
+    final upload = _uploads;
+    final served = url != null && url.isNotEmpty && await _loads(url);
+
+    // A newer pick owns the preview by now; this one has nothing left to say.
+    if (!mounted || upload != _uploads) return;
+
+    // Dropped whether or not it loaded: the avatar is supposed to show what
+    // the account actually has, and a preview that outlives its upload is
+    // exactly what hid this.
+    setState(() => _preview = null);
+    _showMessage(
+      served
+          ? 'Profile photo updated'
+          : 'Photo uploaded, but the server did not serve it back.',
     );
+  }
+
+  Future<bool> _loads(String url) async {
+    final verify = widget.verifyImage;
+    if (verify != null) return verify(url);
+
+    var failed = false;
+    // `precacheImage` completes rather than throws on a broken image, and
+    // reports to `FlutterError` unless handed somewhere else to put it — so
+    // the outcome has to be read off `onError`, not off the future.
+    await precacheImage(
+      NetworkImage(url),
+      context,
+      onError: (_, _) => failed = true,
+    );
+    return !failed;
   }
 
   @override
@@ -177,27 +243,27 @@ class _ProfileAvatarPickerState extends State<ProfileAvatarPicker> {
                       ),
                     ),
                   ),
-                // Positioned(
-                //   right: 0,
-                //   bottom: 0,
-                //   child: Container(
-                //     width: badge,
-                //     height: badge,
-                //     alignment: Alignment.center,
-                //     decoration: BoxDecoration(
-                //       color: c.primary,
-                //       shape: BoxShape.circle,
-                //       // Cut out of the background rather than drawn on top of
-                //       // it, so the badge reads as separate from the avatar.
-                //       border: Border.all(color: c.bg, width: 2.5),
-                //     ),
-                //     child: Icon(
-                //       Icons.photo_camera_rounded,
-                //       size: badge * 0.5,
-                //       color: c.primaryInk,
-                //     ),
-                //   ),
-                // ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: badge,
+                    height: badge,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: c.primary,
+                      shape: BoxShape.circle,
+                      // Cut out of the background rather than drawn on top of
+                      // it, so the badge reads as separate from the avatar.
+                      border: Border.all(color: c.bg, width: 2.5),
+                    ),
+                    child: Icon(
+                      Icons.photo_camera_rounded,
+                      size: badge * 0.5,
+                      color: c.primaryInk,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -83,6 +84,25 @@ class FakeAuthApi implements HttpClientAdapter {
   /// oversized file does.
   bool rejectAvatarUpload = false;
 
+  /// The password `delete-account` and `restore-account` accept. Sign-in here
+  /// does not check one; those two do, because re-typing it is the whole point
+  /// of both.
+  String accountPassword = 'supersecret';
+
+  /// True between a deletion and the restore that undoes it.
+  bool accountDeleted = false;
+
+  /// What the deletion answers with, and the day the account stops being
+  /// recoverable.
+  DateTime purgeAt = DateTime.utc(2026, 10, 2, 8);
+
+  /// Flip to make `restore-account` answer 403, as a lapsed window does.
+  bool recoveryWindowClosed = false;
+
+  /// Flip to make `restore-account` answer 409, as a number that has since
+  /// been claimed by somebody else does.
+  bool numberTaken = false;
+
   /// The name on the account. Nullable, because the API's own `name` is —
   /// registering with a number and a password alone is allowed.
   String? userName = 'Test User';
@@ -105,6 +125,11 @@ class FakeAuthApi implements HttpClientAdapter {
 
   /// True once a retired refresh token was presented.
   bool reuseDetected = false;
+
+  /// Stalls `POST /auth/refresh` until it is completed, so a test can do
+  /// something else — sign out, say — while a rotation is genuinely in flight
+  /// rather than hoping the event loop lines up.
+  Completer<void>? holdRefresh;
 
   int rotations = 0;
 
@@ -192,10 +217,17 @@ class FakeAuthApi implements HttpClientAdapter {
       return _json(_session('Account created successfully'), 201);
     }
     if (path.endsWith('/auth/refresh')) {
+      await holdRefresh?.future;
       return _refresh(options.data);
     }
     if (path.endsWith('/auth/logout')) {
       return _json({'message': 'Signed out successfully'}, 200);
+    }
+    if (path.endsWith('/auth/delete-account')) {
+      return _deleteAccount(options);
+    }
+    if (path.endsWith('/auth/restore-account')) {
+      return _restoreAccount(options.data);
     }
     if (path.endsWith('/auth/verify-phone/request')) {
       return _requestPhoneVerification(options);
@@ -288,6 +320,68 @@ class FakeAuthApi implements HttpClientAdapter {
       'message': 'Phone verified successfully',
       'phoneVerified': true,
     }, 200);
+  }
+
+  /// `POST /auth/delete-account` — guarded, and then the password again.
+  ///
+  /// Both checks matter to the client: the guard means an expired token gets
+  /// the same 401 a wrong password does, and only refreshing and retrying
+  /// tells them apart.
+  ResponseBody _deleteAccount(RequestOptions options) {
+    final rejected = _rejectIfUnauthenticated(options);
+    if (rejected != null) return rejected;
+
+    final body = options.data;
+    final password = body is Map ? '${body['password']}' : '';
+    if (password != accountPassword) {
+      return _json({
+        'message': 'Password is incorrect',
+        'error': 'Unauthorized',
+        'statusCode': 401,
+      }, 401);
+    }
+
+    accountDeleted = true;
+    // Every session for the account goes, exactly as the real API does.
+    liveAccessToken = 'revoked';
+    liveRefreshToken = 'revoked';
+    return _json({
+      'message': 'Account scheduled for deletion',
+      'purgeAt': purgeAt.toIso8601String(),
+    }, 200);
+  }
+
+  /// `POST /auth/restore-account` — unguarded, and answers with a session.
+  ResponseBody _restoreAccount(Object? body) {
+    final fields = body is Map ? body : const <String, dynamic>{};
+
+    // The deleted-ness is checked with the password, not before it: answering
+    // differently would say which numbers have a deletion pending.
+    if ('${fields['password']}' != accountPassword || !accountDeleted) {
+      return _json({
+        'message': 'Invalid phone or password',
+        'error': 'Unauthorized',
+        'statusCode': 401,
+      }, 401);
+    }
+    if (recoveryWindowClosed) {
+      return _json({
+        'message': 'The recovery window for this account has passed',
+        'error': 'Forbidden',
+        'statusCode': 403,
+      }, 403);
+    }
+    if (numberTaken) {
+      return _json({
+        'message': 'That number now belongs to a different account',
+        'error': 'Conflict',
+        'statusCode': 409,
+      }, 409);
+    }
+
+    accountDeleted = false;
+    _resetSession();
+    return _json(_session('Account restored successfully'), 200);
   }
 
   /// `POST /auth/refresh`, rotation and reuse detection included — the two

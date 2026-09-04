@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_piggypal_app/core/utils/typedefs.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/account_deletion.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_session.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_user.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/phone_verification_request.dart';
@@ -48,6 +49,30 @@ abstract interface class AuthenticationRepository {
   /// Succeeds even if the server call fails: the local session must go either
   /// way, or a user with no connection could not sign out at all.
   ResultVoid signOut();
+
+  /// `POST /auth/delete-account`, then clears the stored tokens.
+  ///
+  /// Soft-delete: the account is scheduled for purging rather than destroyed,
+  /// and [restoreAccount] can bring it back until
+  /// [AccountDeletion.purgeAt]. The server revokes every session as part of
+  /// this, so there is nothing left to sign out of afterwards.
+  ///
+  /// A wrong password comes back as an `AuthFailure` with the server's own
+  /// wording, and leaves the session **intact** — a typo on this screen must
+  /// not sign the user out. A session that really has died is handled a layer
+  /// down, by the refresh interceptor, before this ever sees the 401.
+  ResultFuture<AccountDeletion> deleteAccount({required String password});
+
+  /// `POST /auth/restore-account` — undoes [deleteAccount] and signs in.
+  ///
+  /// Needs the number and password rather than a session, because deletion
+  /// revoked every token the account had. Fails once the recovery window has
+  /// passed, and if the number or email has since been taken by somebody else.
+  ResultFuture<AuthSession> restoreAccount({
+    required String countryCode,
+    required String phone,
+    required String password,
+  });
 
   /// `GET /users/me` — the full profile, not the token's claims.
   ResultFuture<AuthUser> getCurrentUser();

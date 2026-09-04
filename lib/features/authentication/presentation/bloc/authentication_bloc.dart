@@ -5,15 +5,19 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_piggypal_app/core/error/failures.dart';
 import 'package:flutter_piggypal_app/core/usecases/usecase.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/account_deletion.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_session.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_user.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/repositories/authentication_repository.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/delete_account.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/get_current_user.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/restore_account.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_in.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_out.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_up.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/update_profile_photo.dart';
 import 'package:fpdart/fpdart.dart';
+import 'package:intl/intl.dart';
 
 part 'authentication_event.dart';
 part 'authentication_state.dart';
@@ -32,12 +36,16 @@ class AuthenticationBloc
     required SignOut signOut,
     required GetCurrentUser getCurrentUser,
     required UpdateProfilePhoto updateProfilePhoto,
+    required DeleteAccount deleteAccount,
+    required RestoreAccount restoreAccount,
     required AuthenticationRepository repository,
   }) : _signIn = signIn,
        _signUp = signUp,
        _signOut = signOut,
        _getCurrentUser = getCurrentUser,
        _updateProfilePhoto = updateProfilePhoto,
+       _deleteAccount = deleteAccount,
+       _restoreAccount = restoreAccount,
        _repository = repository,
        super(const AuthenticationState()) {
     on<AuthenticationStarted>(_onStarted);
@@ -45,8 +53,11 @@ class AuthenticationBloc
     on<AuthenticationSignUpRequested>(_onSignUpRequested);
     on<AuthenticationProfilePhotoUpdated>(_onProfilePhotoUpdated);
     on<AuthenticationSignOutRequested>(_onSignOutRequested);
+    on<AuthenticationDeleteAccountRequested>(_onDeleteAccountRequested);
+    on<AuthenticationAccountRestoreRequested>(_onAccountRestoreRequested);
     on<AuthenticationUserRefreshed>(_onUserRefreshed);
     on<AuthenticationErrorDismissed>(_onErrorDismissed);
+    on<AuthenticationNoticeDismissed>(_onNoticeDismissed);
     on<AuthenticationSessionExpired>(_onSessionExpired);
 
     // Expiry arrives from the network layer, not from anything the user did:
@@ -62,6 +73,8 @@ class AuthenticationBloc
   final SignOut _signOut;
   final GetCurrentUser _getCurrentUser;
   final UpdateProfilePhoto _updateProfilePhoto;
+  final DeleteAccount _deleteAccount;
+  final RestoreAccount _restoreAccount;
 
   /// For `hasSession()` — the cheap "is there a token on disk" check, which is
   /// not worth a use case of its own — and for the expiry stream.
@@ -219,6 +232,68 @@ class AuthenticationBloc
     );
   }
 
+  /// Ends the session by destroying the account behind it.
+  ///
+  /// A failure here is almost always a mistyped password, and leaves the user
+  /// exactly where they were: still signed in, with the message. Only success
+  /// signs them out — and it carries the recovery window with it, because the
+  /// screen that can show that has not been built yet when this runs.
+  Future<void> _onDeleteAccountRequested(
+    AuthenticationDeleteAccountRequested event,
+    Emitter<AuthenticationState> emit,
+  ) async {
+    emit(state.copyWith(status: AuthenticationStatus.loading));
+    final result = await _deleteAccount(
+      DeleteAccountParams(password: event.password),
+    );
+    emit(
+      result.match(
+        (failure) => state.copyWith(
+          status: AuthenticationStatus.authenticated,
+          errorMessage: failure.message,
+        ),
+        (deletion) => state.copyWith(
+          status: AuthenticationStatus.unauthenticated,
+          clearUser: true,
+          notice: _recoveryNotice(deletion),
+        ),
+      ),
+    );
+  }
+
+  /// The same shape as signing in, because that is what it is: the account
+  /// comes back and the response carries a session.
+  Future<void> _onAccountRestoreRequested(
+    AuthenticationAccountRestoreRequested event,
+    Emitter<AuthenticationState> emit,
+  ) async {
+    emit(state.copyWith(status: AuthenticationStatus.loading));
+    final result = await _restoreAccount(
+      RestoreAccountParams(
+        countryCode: event.countryCode,
+        phone: event.phone,
+        password: event.password,
+      ),
+    );
+    await _emitSession(result, emit);
+  }
+
+  /// What the user is told once the deletion has landed and they are back on
+  /// the sign-in screen.
+  ///
+  /// A date the server did not send is left unsaid rather than guessed at: the
+  /// grace period is configured server-side, so a "30 days" invented here
+  /// would be the app promising something it does not know.
+  String _recoveryNotice(AccountDeletion deletion) {
+    final purgeAt = deletion.purgeAt;
+    const lead = 'Your account is scheduled for deletion.';
+
+    return purgeAt == null
+        ? '$lead You can still recover it by signing in again below.'
+        : '$lead You can recover it until '
+              '${DateFormat.yMMMMd().format(purgeAt)}.';
+  }
+
   /// Drops the message once the UI has shown it, so a rebuild cannot show the
   /// same snackbar twice.
   void _onErrorDismissed(
@@ -227,6 +302,16 @@ class AuthenticationBloc
   ) {
     if (state.errorMessage == null) return;
     emit(state.copyWith());
+  }
+
+  /// As [_onErrorDismissed], for the notice that outlives the screen that set
+  /// it.
+  void _onNoticeDismissed(
+    AuthenticationNoticeDismissed event,
+    Emitter<AuthenticationState> emit,
+  ) {
+    if (state.notice == null) return;
+    emit(state.copyWith(clearNotice: true));
   }
 
   @override

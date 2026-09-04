@@ -355,7 +355,22 @@ class MorePage extends StatelessWidget {
           icon: Icons.logout,
           onTap: () => _confirmSignOut(context),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 10),
+        // Its own screen rather than a dialog like Sign Out: this one needs
+        // the password typed again, and it is worth reading what goes with the
+        // account before confirming it.
+        GestureDetector(
+          onTap: () => nav.push(TFScreens.deleteAccount),
+          child: Container(
+            height: 44,
+            alignment: Alignment.center,
+            child: Text(
+              'Delete Account',
+              style: TFText.sans(size: 13.5, color: c.neg),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Center(
           child: Text(
             'Training Finance · v1.0 · ${db.org.name}',

@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_piggypal_app/core/di/injection_container.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/core/utils/profile_image_picker.dart';
+import 'package:flutter_piggypal_app/features/account/data/profile_store.dart';
 import 'package:flutter_piggypal_app/features/account/presentation/widgets/profile_avatar_picker.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,6 +32,18 @@ void main() {
     late CropImage crop;
     ImageSource? lastSource;
 
+    /// Whether the URL the upload answers with actually loads. Stubbed because
+    /// `flutter_test` answers every HTTP request with a 400, so a real fetch
+    /// could only ever fail — and the point of these tests is to tell a URL
+    /// that serves an image from one that does not.
+    late bool imageServed;
+    final verified = <String>[];
+
+    Future<bool> stubVerify(String url) async {
+      verified.add(url);
+      return imageServed;
+    }
+
     Future<XFile?> stubPicker(ImageSource source) async {
       lastSource = source;
       return XFile.fromData(_pngBytes, path: 'avatar.png');
@@ -38,6 +51,8 @@ void main() {
 
     setUp(() async {
       lastSource = null;
+      imageServed = true;
+      verified.clear();
       crop = stubCropper(_pngBytes, extension: '.png');
       api = await setUpDependencies()
         ..userName = 'Dara Sok';
@@ -55,20 +70,38 @@ void main() {
     tearDown(() async {
       await auth.close();
       await tearDownDependencies();
+      // The store is a global singleton, so a picture left on it would be the
+      // starting state of whatever test runs next.
+      ProfileStore.instance.current = ProfileStore.instance.current.copyWith(
+        clearAvatarUrl: true,
+      );
     });
 
     Future<void> pumpPicker(WidgetTester tester) async {
       await tester.pumpWidget(
         BlocProvider.value(
           value: auth,
-          child: MaterialApp(
-            home: Scaffold(
-              body: TFThemeScope(
-                child: Center(
-                  child: ProfileAvatarPicker(
-                    name: 'Dara Sok',
-                    pickImage: stubPicker,
-                    cropImage: crop,
+          // Stands in for `_SessionWatcher`, which sits above this widget in
+          // the real tree and is what copies the account's avatar URL onto the
+          // store the picker renders from.
+          child: BlocListener<AuthenticationBloc, AuthenticationState>(
+            listener: (_, state) => ProfileStore.instance.current = ProfileStore
+                .instance
+                .current
+                .copyWith(
+                  avatarUrl: state.user?.avatarUrl,
+                  clearAvatarUrl: state.user?.avatarUrl == null,
+                ),
+            child: MaterialApp(
+              home: Scaffold(
+                body: TFThemeScope(
+                  child: Center(
+                    child: ProfileAvatarPicker(
+                      name: 'Dara Sok',
+                      pickImage: stubPicker,
+                      cropImage: crop,
+                      verifyImage: stubVerify,
+                    ),
                   ),
                 ),
               ),
@@ -153,6 +186,54 @@ void main() {
       expect(find.byType(Image), findsNothing);
       expect(find.text('DS'), findsOneWidget);
       expect(find.text('Avatar could not be stored'), findsOneWidget);
+    });
+
+    Finder memoryImage() => find.byWidgetPredicate(
+      (w) => w is Image && w.image is MemoryImage,
+      description: 'Image.memory',
+    );
+
+    Finder networkImage() => find.byWidgetPredicate(
+      (w) => w is Image && w.image is NetworkImage,
+      description: 'Image.network',
+    );
+
+    testWidgets('the stored URL takes over from the preview once it loads', (
+      tester,
+    ) async {
+      await pumpPicker(tester);
+      await pick(tester, 'Choose from gallery');
+      expect(memoryImage(), findsOneWidget);
+
+      await settleUpload(tester);
+
+      // What the account really has, not what was picked. Holding the picked
+      // bytes on is what made a lost upload indistinguishable from a good one.
+      expect(verified, [api.avatarUrl]);
+      expect(memoryImage(), findsNothing);
+      expect(networkImage(), findsOneWidget);
+      expect(find.text('Profile photo updated'), findsOneWidget);
+    });
+
+    testWidgets('a photo the server will not serve back says so', (
+      tester,
+    ) async {
+      imageServed = false;
+      await pumpPicker(tester);
+      await pick(tester, 'Choose from gallery');
+      await settleUpload(tester);
+
+      // The PATCH succeeded and the row holds a URL, so nothing in the
+      // response says anything is wrong — only fetching it back does.
+      expect(api.requestTo('/users/me', method: 'PATCH'), isNotNull);
+      expect(auth.state.user?.avatarUrl, isNotNull);
+      expect(
+        find.text('Photo uploaded, but the server did not serve it back.'),
+        findsOneWidget,
+      );
+      // And the picture goes with the message: an avatar that keeps drawing
+      // bytes the account cannot serve is the bug, not the consolation.
+      expect(memoryImage(), findsNothing);
     });
 
     testWidgets('backing out of the cropper changes nothing', (tester) async {

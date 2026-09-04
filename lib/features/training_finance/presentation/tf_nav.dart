@@ -36,6 +36,7 @@ abstract final class TFScreens {
   static const notifications = 'notifications';
   static const editProfile = 'editprofile';
   static const changePassword = 'changepassword';
+  static const deleteAccount = 'deleteaccount';
 }
 
 /// Identifiers for root tabs.

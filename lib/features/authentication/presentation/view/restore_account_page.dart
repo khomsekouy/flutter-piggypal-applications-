@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -13,23 +11,31 @@ import 'package:flutter_piggypal_app/features/authentication/presentation/widget
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/phone_number_field.dart';
 import 'package:go_router/go_router.dart';
 
-class SignInPage extends StatefulWidget {
-  const SignInPage({super.key});
+/// Brings back an account that was deleted but not yet purged.
+///
+/// A screen of its own rather than a branch of sign-in, because signing in is
+/// exactly what does *not* work here: the API refuses a deleted account, so
+/// the only way back is `POST /auth/restore-account`. Without this screen the
+/// recovery window the server keeps would be unreachable from the app, and the
+/// date shown at deletion would be a promise nothing could keep.
+///
+/// Takes the same two fields as sign-in and, when it succeeds, hands back the
+/// same thing: a session. The user is simply signed in.
+class RestoreAccountPage extends StatefulWidget {
+  const RestoreAccountPage({super.key});
 
   @override
-  State<SignInPage> createState() => _SignInPageState();
+  State<RestoreAccountPage> createState() => _RestoreAccountPageState();
 }
 
-class _SignInPageState extends State<SignInPage> {
+class _RestoreAccountPageState extends State<RestoreAccountPage> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
   final _phoneFocus = FocusNode();
   final _passwordFocus = FocusNode();
 
-  /// Whether the number satisfies the selected country's length rule.
   bool _phoneValid = false;
-
   bool _obscurePassword = true;
 
   @override
@@ -37,14 +43,6 @@ class _SignInPageState extends State<SignInPage> {
     super.initState();
     _phoneController.addListener(_onFieldChanged);
     _passwordController.addListener(_onFieldChanged);
-
-    // A notice set before this screen existed — deleting an account signs the
-    // user out and lands them here, and the emission that carried the recovery
-    // date happened while the More tab was still up. A listener only sees what
-    // arrives after it subscribes, so the standing state is read once here.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _showNotice(context.read<AuthenticationBloc>().state);
-    });
   }
 
   @override
@@ -62,18 +60,16 @@ class _SignInPageState extends State<SignInPage> {
 
   void _onFieldChanged() => setState(() {});
 
-  /// Digits only — the field strips the dial code and any leading zero, and
-  /// `POST /auth/login` wants the national number on its own.
   String get _digits => _phoneController.text.replaceAll(RegExp(r'\D'), '');
 
   bool _canSubmit(bool isBusy) =>
       _phoneValid && _passwordController.text.isNotEmpty && !isBusy;
 
-  void _handleSignIn() {
+  void _handleRestore() {
     if (!_canSubmit(context.read<AuthenticationBloc>().state.isBusy)) return;
     FocusScope.of(context).unfocus();
     context.read<AuthenticationBloc>().add(
-      AuthenticationSignInRequested(
+      AuthenticationAccountRestoreRequested(
         countryCode: PhoneNumberField.dialCode,
         phone: _digits,
         password: _passwordController.text,
@@ -81,39 +77,7 @@ class _SignInPageState extends State<SignInPage> {
     );
   }
 
-  /// Navigation and errors both live here rather than after an awaited call:
-  /// the bloc is app-wide, so the result of a sign-in can arrive at any time
-  /// — including from a launch check that finished while this screen was up.
-  /// Shows [AuthenticationState.notice] once, then tells the bloc it has been
-  /// seen so a rebuild cannot repeat it.
-  void _showNotice(AuthenticationState state) {
-    final notice = state.notice;
-    if (notice == null) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.surface,
-          duration: const Duration(seconds: 8),
-          content: Text(
-            notice,
-            style: const TextStyle(color: AppColors.textPrimary),
-          ),
-          action: SnackBarAction(
-            label: 'Recover',
-            textColor: AppColors.primaryGreen,
-            onPressed: _goToRestoreAccount,
-          ),
-        ),
-      );
-    context.read<AuthenticationBloc>().add(
-      const AuthenticationNoticeDismissed(),
-    );
-  }
-
   void _onAuthStateChanged(BuildContext context, AuthenticationState state) {
-    _showNotice(state);
     final message = state.errorMessage;
     if (message != null) {
       ScaffoldMessenger.of(context)
@@ -133,21 +97,16 @@ class _SignInPageState extends State<SignInPage> {
     }
 
     if (state.isAuthenticated) {
-      // Replaces the auth stack so back from home cannot return to sign-in.
       context.goNamed(AppRoutes.home);
     }
   }
 
-  void _goToCreateAccount() {
-    unawaited(context.pushNamed(AppRoutes.createAccount));
-  }
-
-  void _goToForgotPassword() {
-    unawaited(context.pushNamed(AppRoutes.forgotPassword));
-  }
-
-  void _goToRestoreAccount() {
-    unawaited(context.pushNamed(AppRoutes.restoreAccount));
+  void _backToSignIn() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.goNamed(AppRoutes.signIn);
+    }
   }
 
   @override
@@ -169,33 +128,26 @@ class _SignInPageState extends State<SignInPage> {
         backgroundColor: AppColors.background,
         body: SafeArea(
           child: SingleChildScrollView(
-            // Taller top inset than the other auth screens: they push the
-            // wordmark down with a back-button row, and sign-in has none.
-            padding: const EdgeInsets.fromLTRB(24, 56, 24, 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const AuthHeader(),
-                const SizedBox(height: 24),
+                AuthHeader(onBack: _backToSignIn),
+                const SizedBox(height: 20),
                 const Center(
                   child: HeroIllustration(
-                    icon: Icons.account_balance_wallet_rounded,
+                    icon: Icons.restore_rounded,
                     badges: [
                       HeroBadge(
-                        icon: Icons.attach_money,
-                        color: AppColors.accentGold,
-                      ),
-                      HeroBadge(
-                        icon: Icons.trending_up,
+                        icon: Icons.history,
                         color: AppColors.primaryGreen,
-                        alignment: Alignment.bottomLeft,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  'Welcome Back!',
+                  'Recover Your Account',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
@@ -205,7 +157,8 @@ class _SignInPageState extends State<SignInPage> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Sign in to continue managing\nyour money smarter.',
+                  'Deleted an account by mistake? Enter the number and\n'
+                  'password it used and we will put it back.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textSecondary, height: 1.4),
                 ),
@@ -227,7 +180,7 @@ class _SignInPageState extends State<SignInPage> {
                   obscureText: _obscurePassword,
                   focusNode: _passwordFocus,
                   textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _handleSignIn(),
+                  onSubmitted: (_) => _handleRestore(),
                   suffix: IconButton(
                     icon: Icon(
                       _obscurePassword
@@ -240,71 +193,22 @@ class _SignInPageState extends State<SignInPage> {
                         setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _goToForgotPassword,
-                    child: const Text(
-                      'Forgot Password?',
-                      style: TextStyle(color: AppColors.primaryGreen),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 24),
                 GradientButton(
-                  label: 'Sign In',
-                  icon: Icons.lock_outline,
+                  label: 'Recover Account',
+                  icon: Icons.restore_rounded,
                   isLoading: isBusy,
-                  onPressed: _canSubmit(isBusy) ? _handleSignIn : null,
+                  onPressed: _canSubmit(isBusy) ? _handleRestore : null,
                 ),
-                const SizedBox(height: 20),
-                const Row(
-                  children: [
-                    Expanded(child: Divider(color: AppColors.surfaceBorder)),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'or',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
-                    Expanded(child: Divider(color: AppColors.surfaceBorder)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'New here? ',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                      GestureDetector(
-                        onTap: _goToCreateAccount,
-                        child: const Text(
-                          'Sign Up',
-                          style: TextStyle(
-                            color: AppColors.primaryGreen,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Standing, not only in the snackbar after a deletion: the
-                // window lasts weeks, and someone coming back on day ten has
-                // long since dismissed that message — and cannot sign in to
-                // find this anywhere else.
-                Center(
-                  child: TextButton(
-                    onPressed: _goToRestoreAccount,
-                    child: const Text(
-                      'Recover a deleted account',
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Once the recovery window has passed the account cannot be '
+                  'brought back, and the number is free to register again.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.4,
                   ),
                 ),
               ],

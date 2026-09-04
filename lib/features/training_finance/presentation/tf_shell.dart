@@ -3,6 +3,7 @@ import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
 import 'package:flutter_piggypal_app/features/account/presentation/view/account_page.dart';
 import 'package:flutter_piggypal_app/features/account/presentation/view/change_password_page.dart';
+import 'package:flutter_piggypal_app/features/account/presentation/view/delete_account_page.dart';
 import 'package:flutter_piggypal_app/features/account/presentation/view/edit_profile_page.dart';
 import 'package:flutter_piggypal_app/features/budgets/presentation/view/budgets_page.dart';
 import 'package:flutter_piggypal_app/features/category_detial/presentation/view/category_detial_page.dart';
@@ -109,6 +110,7 @@ class _TFShellState extends State<TFShell> implements TFNav {
       TFScreens.notifications => NotificationPage(nav: this),
       TFScreens.editProfile => EditProfilePage(nav: this),
       TFScreens.changePassword => ChangePasswordPage(nav: this),
+      TFScreens.deleteAccount => DeleteAccountPage(nav: this),
       _ => DashboardPage(nav: this),
     };
   }

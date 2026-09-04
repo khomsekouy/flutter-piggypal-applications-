@@ -5,6 +5,7 @@ import 'package:flutter_piggypal_app/core/error/exceptions.dart';
 import 'package:flutter_piggypal_app/core/network/dio_error_mapper.dart';
 import 'package:flutter_piggypal_app/core/network/interceptors/auth_interceptor.dart';
 import 'package:flutter_piggypal_app/core/network/interceptors/refresh_interceptor.dart';
+import 'package:flutter_piggypal_app/features/authentication/data/models/account_deletion_model.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/models/auth_session_model.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/models/auth_user_model.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/models/phone_verification_request_model.dart';
@@ -20,6 +21,16 @@ abstract final class AuthEndpoints {
   /// Trades a refresh token for a new pair. The old one is retired by the
   /// server the moment this succeeds.
   static const refresh = '/auth/refresh';
+
+  /// Soft-deletes the signed-in account and revokes every session it has.
+  /// `POST`, not `DELETE`: the password rides in the body, and plenty of
+  /// mobile HTTP clients quietly drop a body from a DELETE.
+  static const deleteAccount = '/auth/delete-account';
+
+  /// Brings a soft-deleted account back and signs it in. Unguarded of
+  /// necessity — deletion revoked every token, so the password is the only
+  /// credential the caller still holds.
+  static const restoreAccount = '/auth/restore-account';
 
   /// Sends a code to the number on the caller's own account. Guarded, and it
   /// takes no body: the server reads the number off the access token rather
@@ -77,6 +88,29 @@ abstract interface class AuthenticationRemoteDataSource {
 
   Future<void> logout({
     required String refreshToken,
+    CancelToken? cancelToken,
+  });
+
+  /// `POST /auth/delete-account`.
+  ///
+  /// Takes the password again on purpose: the access token alone must not be
+  /// enough to destroy an account, since a borrowed or stolen session would
+  /// then be able to. A 401 here is therefore about the *password*, not the
+  /// session — but unlike the verification code, this one is worth refreshing
+  /// and replaying, because an expired token would otherwise report a correct
+  /// password as wrong on the one action that cannot be undone.
+  Future<AccountDeletionModel> deleteAccount({
+    required String password,
+    CancelToken? cancelToken,
+  });
+
+  /// `POST /auth/restore-account`. Answers with a full session, like sign-in.
+  Future<AuthSessionModel> restoreAccount({
+    required String countryCode,
+    required String phone,
+    required String password,
+    String? deviceId,
+    String? deviceName,
     CancelToken? cancelToken,
   });
 
@@ -229,6 +263,50 @@ class AuthenticationRemoteDataSourceImpl
       body: {'refreshToken': refreshToken},
       cancelToken: cancelToken,
     );
+  }
+
+  @override
+  Future<AccountDeletionModel> deleteAccount({
+    required String password,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      // Guarded, so no `_noAuth` here — and deliberately no `skipRefresh`
+      // either: see the interface. A wrong password costs one extra rotation
+      // and one throttle slot; an expired token silently refusing a real
+      // deletion would cost the user their trust in the button.
+      final response = await _dio.post<Map<String, dynamic>>(
+        AuthEndpoints.deleteAccount,
+        data: {'password': password},
+        cancelToken: cancelToken,
+      );
+      return AccountDeletionModel.fromJson(_requireBody(response.data));
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<AuthSessionModel> restoreAccount({
+    required String countryCode,
+    required String phone,
+    required String password,
+    String? deviceId,
+    String? deviceName,
+    CancelToken? cancelToken,
+  }) async {
+    final json = await _post(
+      AuthEndpoints.restoreAccount,
+      body: _compact({
+        'countryCode': countryCode,
+        'phone': phone,
+        'password': password,
+        'deviceId': deviceId,
+        'deviceName': deviceName,
+      }),
+      cancelToken: cancelToken,
+    );
+    return AuthSessionModel.fromJson(json);
   }
 
   @override
