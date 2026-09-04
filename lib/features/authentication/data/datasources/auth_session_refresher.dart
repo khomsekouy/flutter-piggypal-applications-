@@ -21,6 +21,11 @@ class AuthSessionRefresher {
   /// The rotation in progress, shared by every caller that arrives during it.
   Future<bool>? _inFlight;
 
+  /// Bumped by [abandon]. A rotation carries the value it started under, and
+  /// one that comes back under a different value is dropped rather than
+  /// written to the store.
+  int _generation = 0;
+
   final _expired = StreamController<void>.broadcast();
 
   /// Emits when the session is gone for good — the refresh token was rejected,
@@ -36,14 +41,33 @@ class AuthSessionRefresher {
     final pending = _inFlight;
     if (pending != null) return pending;
 
-    final attempt = _rotate(usedAccessToken).whenComplete(() {
-      _inFlight = null;
+    final generation = _generation;
+    final attempt = _rotate(generation, usedAccessToken).whenComplete(() {
+      // Only while this is still the rotation everyone is waiting on.
+      // [abandon] has already emptied the slot, and a caller arriving after it
+      // may own it by now.
+      if (generation == _generation) _inFlight = null;
     });
     _inFlight = attempt;
     return attempt;
   }
 
-  Future<bool> _rotate(String? usedAccessToken) async {
+  /// Gives up on whatever rotation is in flight, because the session it
+  /// belongs to is over by the user's own choice — sign-out.
+  ///
+  /// The request cannot be recalled, but its answer can be thrown away, and it
+  /// has to be. A pair saved after the store was cleared puts a working
+  /// session back on a device the user just signed out of; a 401 handled after
+  /// the same clear announces an expiry for a session nobody expected to
+  /// outlive the tap.
+  void abandon() {
+    _generation += 1;
+    // Nothing may join the abandoned attempt: a caller arriving after this has
+    // to rotate against whatever session exists then, if any.
+    _inFlight = null;
+  }
+
+  Future<bool> _rotate(int generation, String? usedAccessToken) async {
     final current = await _tokens.readAccessToken();
     if (usedAccessToken != null &&
         current != null &&
@@ -61,6 +85,8 @@ class AuthSessionRefresher {
         deviceId: await _tokens.deviceId(),
         deviceName: _tokens.deviceName,
       );
+      // Nothing is stored once the session has been abandoned — see [abandon].
+      if (generation != _generation) return false;
       // Stored before anything is retried: the token just spent is already
       // dead server-side, and a second call with it would look like a leak.
       await _tokens.saveTokens(
@@ -69,7 +95,10 @@ class AuthSessionRefresher {
       );
       return true;
     } on UnauthorizedException {
-      // Expired, revoked, or rotated away — the session is over.
+      // Expired, revoked, or rotated away — the session is over. Unless it was
+      // already over on purpose, in which case saying so twice is worse than
+      // not saying it at all.
+      if (generation != _generation) return false;
       await _tokens.clear();
       _expired.add(null);
       return false;

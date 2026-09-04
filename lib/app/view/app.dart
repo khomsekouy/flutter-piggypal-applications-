@@ -81,11 +81,19 @@ class _SessionWatcherState extends State<_SessionWatcher> {
       listener: (context, state) {
         _syncProfile(state.user);
 
-        // Losing a session that *was* live means the refresh token was
-        // rejected: expired, revoked, or reused. Requests refresh and retry
-        // themselves, so nothing else could have caused this. Sign-out takes
-        // the same path and navigates on its own; `go` replaces the stack, so
-        // arriving twice is harmless.
+        // `loading` is a request in flight, not an answer about the session,
+        // and must not be remembered as one. Signing out goes straight from
+        // authenticated to unauthenticated, but deleting an account emits
+        // `loading` in between — and recording that as the previous status
+        // loses the very fact the redirect below turns on: that there was a
+        // session to lose.
+        if (state.status == AuthenticationStatus.loading) return;
+
+        // Losing a session that *was* live means it ended: the refresh token
+        // was rejected — expired, revoked, or reused — or the account behind
+        // it is gone. Requests refresh and retry themselves, so nothing else
+        // could have caused this. Sign-out takes the same path and navigates
+        // on its own; `go` replaces the stack, so arriving twice is harmless.
         final wasSignedIn =
             _previousStatus == AuthenticationStatus.authenticated;
         _previousStatus = state.status;

@@ -73,6 +73,38 @@ class AuthenticationSignOutRequested extends AuthenticationEvent {
   const AuthenticationSignOutRequested();
 }
 
+/// `POST /auth/delete-account`, then forget the tokens.
+///
+/// The password is re-typed at the confirmation screen: a session on its own
+/// must not be enough to destroy an account.
+class AuthenticationDeleteAccountRequested extends AuthenticationEvent {
+  const AuthenticationDeleteAccountRequested({required this.password});
+
+  final String password;
+
+  @override
+  List<Object?> get props => [password];
+}
+
+/// `POST /auth/restore-account` — undoes a deletion and signs straight in.
+///
+/// Carries the number and password rather than relying on a session, because
+/// deleting the account revoked every token it had.
+class AuthenticationAccountRestoreRequested extends AuthenticationEvent {
+  const AuthenticationAccountRestoreRequested({
+    required this.countryCode,
+    required this.phone,
+    required this.password,
+  });
+
+  final String countryCode;
+  final String phone;
+  final String password;
+
+  @override
+  List<Object?> get props => [countryCode, phone, password];
+}
+
 /// Re-read `GET /users/me`.
 class AuthenticationUserRefreshed extends AuthenticationEvent {
   const AuthenticationUserRefreshed();
@@ -87,4 +119,9 @@ class AuthenticationSessionExpired extends AuthenticationEvent {
 /// The UI has shown [AuthenticationState.errorMessage]; clear it.
 class AuthenticationErrorDismissed extends AuthenticationEvent {
   const AuthenticationErrorDismissed();
+}
+
+/// The UI has shown [AuthenticationState.notice]; clear it.
+class AuthenticationNoticeDismissed extends AuthenticationEvent {
+  const AuthenticationNoticeDismissed();
 }

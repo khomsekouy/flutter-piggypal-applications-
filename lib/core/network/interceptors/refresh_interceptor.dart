@@ -69,11 +69,20 @@ class RefreshInterceptor extends Interceptor {
       return;
     }
 
-    // The replay goes straight to the adapter, so it does not pass the auth
-    // interceptor again and has to carry the new token itself.
+    // The replay carries the new token itself rather than leaving it to the
+    // auth interceptor to put back.
     options
       ..headers['Authorization'] = 'Bearer $token'
       ..extra[_retried] = true;
+
+    // A multipart body is a one-shot stream: dio finalised it to send the
+    // first attempt, and finalising it again throws. `clone()` is dio's own
+    // answer to this. Without it the replay never reaches the wire, the
+    // StateError arrives as a `DioExceptionType.unknown`, and an avatar
+    // upload that only needed a fresh token reports "check your connection"
+    // and loses the picture.
+    final body = options.data;
+    if (body is FormData) options.data = body.clone();
 
     try {
       handler.resolve(await _retry(options));

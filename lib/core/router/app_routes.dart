@@ -50,6 +50,12 @@ abstract final class AppRoutes {
   static const resetPassword = 'reset-password';
   static const resetPasswordPath = '/reset-password';
 
+  /// Recovery for an account that was deleted but not yet purged. Reached
+  /// from sign-in, because signing in is the one thing that will not work for
+  /// an account in that state.
+  static const restoreAccount = 'restore-account';
+  static const restoreAccountPath = '/restore-account';
+
   /// Main app shell (Training Finance module). Owns its own internal nav.
   static const home = 'home';
   static const homePath = '/home';

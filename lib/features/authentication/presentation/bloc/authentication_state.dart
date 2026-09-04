@@ -15,6 +15,7 @@ class AuthenticationState extends Equatable {
     this.status = AuthenticationStatus.unknown,
     this.user,
     this.errorMessage,
+    this.notice,
   });
 
   final AuthenticationStatus status;
@@ -25,6 +26,17 @@ class AuthenticationState extends Equatable {
   /// Set for one emission after a failed call; the screen shows it and then
   /// dispatches [AuthenticationErrorDismissed].
   final String? errorMessage;
+
+  /// Something worth telling the user that is not a failure — the recovery
+  /// window after a deletion, so far.
+  ///
+  /// Carried across emissions rather than dropped like [errorMessage], and for
+  /// a specific reason: the screen that has to show this is not the one that
+  /// was mounted when it was set. Deleting an account signs the user out and
+  /// lands them on sign-in, which mounts *after* the emission and so would
+  /// never see a one-shot message. It is cleared by
+  /// [AuthenticationNoticeDismissed] once a screen has actually shown it.
+  final String? notice;
 
   bool get isBusy => status == AuthenticationStatus.loading;
   bool get isAuthenticated => status == AuthenticationStatus.authenticated;
@@ -41,7 +53,9 @@ class AuthenticationState extends Equatable {
     AuthenticationStatus? status,
     AuthUser? user,
     String? errorMessage,
+    String? notice,
     bool clearUser = false,
+    bool clearNotice = false,
   }) {
     return AuthenticationState(
       status: status ?? this.status,
@@ -49,9 +63,11 @@ class AuthenticationState extends Equatable {
       // Not carried over: a message is shown once. Anything that wants to keep
       // it has to pass it again.
       errorMessage: errorMessage,
+      // Carried, unlike the above — see [notice].
+      notice: clearNotice ? null : (notice ?? this.notice),
     );
   }
 
   @override
-  List<Object?> get props => [status, user, errorMessage];
+  List<Object?> get props => [status, user, errorMessage, notice];
 }
