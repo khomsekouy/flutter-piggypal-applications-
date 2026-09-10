@@ -8,12 +8,15 @@ import 'package:flutter_piggypal_app/core/di/injection_container.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/password_reset_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/phone_verification_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_step_indicator.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/hero_illustration.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/otp_field.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/phone_number_field.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/resend_code_card.dart';
 import 'package:go_router/go_router.dart';
 
 /// Number of boxes in the verification code.
@@ -54,21 +57,30 @@ enum VerifyPurpose {
 
 /// Step two of two: the six digits.
 ///
-/// The sign-up path talks to the API for real, through
-/// [PhoneVerificationBloc]. The password-reset path is still stubbed — its
-/// server-side chain (`forgot-password` → `verify-otp` → `reset-password`)
-/// exists but nothing in the app calls it yet.
+/// Both paths talk to the API for real, through a bloc apiece: sign-up
+/// through [PhoneVerificationBloc] (`verify-phone/confirm`, guarded, no
+/// number in the body), password reset through [PasswordResetBloc]
+/// (`verify-otp`, unguarded, the number in the body because there is no
+/// session to read one from).
 class VerifyNumberPage extends StatelessWidget {
   const VerifyNumberPage({
     required this.phoneNumber,
+    this.countryCode,
     this.purpose = VerifyPurpose.signUp,
     this.devCode,
     super.key,
   });
 
-  /// The number the code was sent to, already formatted with its dial code.
-  /// Empty when the route is opened without a `phone` query parameter.
+  /// The number the code was sent to. On the reset path this is the
+  /// **national** number alone, with [countryCode] beside it, because
+  /// `verify-otp` wants the two apart. On the sign-up path there is no
+  /// country code to pair it with and it arrives display-ready, straight off
+  /// the session. Empty when the route is opened without a `phone` parameter.
   final String phoneNumber;
+
+  /// The dialling code that goes with [phoneNumber], on the reset path only.
+  /// Null on the sign-up path, which is what makes [phoneNumber] print as-is.
+  final String? countryCode;
 
   /// Which flow sent the user here. Decides the copy and the next screen.
   final VerifyPurpose purpose;
@@ -83,19 +95,23 @@ class VerifyNumberPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final view = _VerifyNumberView(
       phoneNumber: phoneNumber,
+      countryCode: countryCode,
       purpose: purpose,
       devCode: devCode,
     );
 
-    // Only the sign-up path makes calls, so only it needs the bloc. The reset
-    // path would otherwise force every screen that pushes it to have the
-    // service locator up.
-    return purpose == VerifyPurpose.signUp
-        ? BlocProvider(
-            create: (_) => sl<PhoneVerificationBloc>(),
-            child: view,
-          )
-        : view;
+    // A bloc each, and only the one the path in play uses: the two answer to
+    // different endpoints with different auth, and nothing here needs both.
+    return switch (purpose) {
+      VerifyPurpose.signUp => BlocProvider(
+        create: (_) => sl<PhoneVerificationBloc>(),
+        child: view,
+      ),
+      VerifyPurpose.passwordReset => BlocProvider(
+        create: (_) => sl<PasswordResetBloc>(),
+        child: view,
+      ),
+    };
   }
 }
 
@@ -103,10 +119,12 @@ class _VerifyNumberView extends StatefulWidget {
   const _VerifyNumberView({
     required this.phoneNumber,
     required this.purpose,
+    this.countryCode,
     this.devCode,
   });
 
   final String phoneNumber;
+  final String? countryCode;
   final VerifyPurpose purpose;
   final String? devCode;
 
@@ -121,9 +139,6 @@ class _VerifyNumberViewState extends State<_VerifyNumberView> {
   int _secondsLeft = _resendCooldown;
   String _code = '';
   String? _errorText;
-
-  /// Only used by the password-reset path, which has no bloc behind it yet.
-  bool _isStubVerifying = false;
 
   /// The mocked code to offer as a one-tap fill: whichever is newer, the one
   /// step one handed over or the one a resend produced.
@@ -157,25 +172,51 @@ class _VerifyNumberViewState extends State<_VerifyNumberView> {
 
   bool get _isSignUp => widget.purpose == VerifyPurpose.signUp;
 
-  /// The bloc's current state, or a standing-still one on the reset path
-  /// where there is no bloc. Read rather than watched: the rebuilds come from
-  /// the `BlocBuilder` in [build], and this is also called from handlers,
-  /// where watching would throw.
+  /// The sign-up bloc's state, or a standing-still one on the reset path
+  /// where that bloc is not provided. Read rather than watched: the rebuilds
+  /// come from the `BlocConsumer` in [build], and this is also called from
+  /// handlers, where watching would throw.
   PhoneVerificationState get _verification => _isSignUp
       ? context.read<PhoneVerificationBloc>().state
       : const PhoneVerificationState();
 
-  bool get _isVerifying =>
-      _isSignUp ? _verification.isSubmittingCode : _isStubVerifying;
+  /// The reset bloc's state, and the mirror of [_verification] — a
+  /// standing-still one on the sign-up path, for the same reason.
+  PasswordResetState get _reset => _isSignUp
+      ? const PasswordResetState()
+      : context.read<PasswordResetBloc>().state;
 
-  bool get _isSendingCode => _verification.isSendingCode;
+  bool get _isVerifying =>
+      _isSignUp ? _verification.isSubmittingCode : _reset.isVerifyingCode;
+
+  bool get _isSendingCode =>
+      _isSignUp ? _verification.isSendingCode : _reset.isSendingCode;
 
   bool get _canResend => _secondsLeft == 0 && !_isVerifying && !_isSendingCode;
 
   bool get _canVerify => _code.length == _codeLength && !_isVerifying;
 
-  String get _destination =>
-      widget.phoneNumber.isEmpty ? 'your number' : widget.phoneNumber;
+  /// The dial code to send with the reset calls.
+  ///
+  /// Falls back to the only country the app offers, which is also the one the
+  /// number field enforces: a deep link straight into this screen carries no
+  /// country, and refusing to continue over that would be a dead end where a
+  /// correct guess exists.
+  String get _countryCode {
+    final code = widget.countryCode;
+    return code == null || code.isEmpty ? PhoneNumberField.dialCode : code;
+  }
+
+  /// The number as the user should read it. The reset path carries the dial
+  /// code separately, so it is joined back on here; the sign-up path's number
+  /// arrives already formatted.
+  String get _destination {
+    if (widget.phoneNumber.isEmpty) return 'your number';
+    final code = widget.countryCode;
+    return code == null || code.isEmpty
+        ? widget.phoneNumber
+        : '$code ${widget.phoneNumber}';
+  }
 
   /// `00:28`, as the design shows it — a bare seconds count reads as a number
   /// rather than a wait.
@@ -225,24 +266,12 @@ class _VerifyNumberViewState extends State<_VerifyNumberView> {
       );
       return;
     }
-    unawaited(_verifyResetStub());
-  }
-
-  /// Stands in for the reset flow's `POST /auth/verify-otp`, which is not
-  /// wired yet. Any complete code passes; the failure path below is the one
-  /// the real call will take.
-  // TODO(auth): call the authentication repository here.
-  Future<void> _verifyResetStub() async {
-    setState(() => _isStubVerifying = true);
-    await Future<void>.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    setState(() => _isStubVerifying = false);
-
-    // Replaces this screen rather than stacking on it: the code has been
-    // spent, so going back should return to the number, not the boxes.
-    context.pushReplacementNamed(
-      AppRoutes.resetPassword,
-      queryParameters: {'phone': widget.phoneNumber},
+    context.read<PasswordResetBloc>().add(
+      PasswordResetCodeSubmitted(
+        countryCode: _countryCode,
+        phone: widget.phoneNumber,
+        code: _code,
+      ),
     );
   }
 
@@ -257,8 +286,14 @@ class _VerifyNumberViewState extends State<_VerifyNumberView> {
       );
       return;
     }
-    // TODO(auth): re-request the reset code here.
-    _showMessage('A new code is on its way to $_destination.');
+    // `forgot-password` again, which is also how it is resent: the server
+    // retires whatever code was live and issues a new one.
+    context.read<PasswordResetBloc>().add(
+      PasswordResetCodeRequested(
+        countryCode: _countryCode,
+        phone: widget.phoneNumber,
+      ),
+    );
   }
 
   void _clearCode() {
@@ -326,9 +361,74 @@ class _VerifyNumberViewState extends State<_VerifyNumberView> {
     }
   }
 
+  void _onResetChanged(BuildContext context, PasswordResetState state) {
+    if (state.devCode != null && state.devCode != _liveDevCode) {
+      setState(() => _liveDevCode = state.devCode);
+    }
+
+    final message = state.errorMessage;
+    if (message != null) {
+      if (state.codeRejected) {
+        // Same order as the sign-up path, and for the same reason: `clear`
+        // reports the empty code back through `onChanged`, which is what
+        // wipes a stale error — set the message first and it wipes that one.
+        _otpKey.currentState?.clear();
+        setState(() {
+          _code = '';
+          _errorText = message;
+        });
+      } else {
+        _showMessage(message);
+      }
+      context.read<PasswordResetBloc>().add(
+        const PasswordResetErrorDismissed(),
+      );
+      return;
+    }
+
+    switch (state.status) {
+      case PasswordResetStatus.codeSent:
+        // This bloc starts fresh on this screen, so the only way it reaches
+        // `codeSent` here is a resend that the server accepted.
+        _showMessage('A new code is on its way to $_destination.');
+      case PasswordResetStatus.codeVerified:
+        // Replaces this screen rather than stacking on it: the code has been
+        // spent, so going back should return to the number, not the boxes.
+        //
+        // The token rides in `extra`, not the query string: it is a
+        // credential, and a URL is the one place in the flow that gets
+        // logged, shared and restored.
+        context.pushReplacementNamed(
+          AppRoutes.resetPassword,
+          queryParameters: {'phone': _destination},
+          extra: state.resetToken,
+        );
+      case PasswordResetStatus.initial:
+      case PasswordResetStatus.sendingCode:
+      case PasswordResetStatus.verifyingCode:
+      case PasswordResetStatus.updatingPassword:
+      case PasswordResetStatus.passwordUpdated:
+        // Nothing to do: the loading states drive the button, and the last
+        // two belong to the screen after this one.
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!_isSignUp) return _buildPage(context);
+    if (!_isSignUp) {
+      return BlocConsumer<PasswordResetBloc, PasswordResetState>(
+        // As on the number screen: clearing a message re-emits the status it
+        // was carried on, and a rejected code sits on `codeSent`. Without
+        // this, dismissing "that code is invalid" would immediately be
+        // followed by "a new code is on its way" — for a resend nobody asked
+        // for and the server never made.
+        listenWhen: (previous, current) =>
+            previous.status != current.status || current.errorMessage != null,
+        listener: _onResetChanged,
+        builder: (context, _) => _buildPage(context),
+      );
+    }
 
     return BlocConsumer<PhoneVerificationBloc, PhoneVerificationState>(
       listener: _onVerificationChanged,
@@ -422,7 +522,7 @@ class _VerifyNumberViewState extends State<_VerifyNumberView> {
                   ),
                 ],
                 const SizedBox(height: 20),
-                _ResendCard(
+                ResendCodeCard(
                   canResend: _canResend,
                   isSending: _isSendingCode,
                   countdown: _countdownLabel,
@@ -496,111 +596,6 @@ class _PhoneChip extends StatelessWidget {
               color: AppColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// "Didn't receive the code?" and the wait before asking again.
-class _ResendCard extends StatelessWidget {
-  const _ResendCard({
-    required this.canResend,
-    required this.isSending,
-    required this.countdown,
-    required this.onResend,
-  });
-
-  final bool canResend;
-  final bool isSending;
-  final String countdown;
-  final VoidCallback onResend;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceBorder),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primaryGreen),
-            ),
-            child: isSending
-                ? const Padding(
-                    padding: EdgeInsets.all(9),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primaryGreen,
-                    ),
-                  )
-                : const Icon(
-                    Icons.schedule,
-                    size: 18,
-                    color: AppColors.primaryGreen,
-                  ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      "Didn't receive the code? ",
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: canResend ? onResend : null,
-                      child: Text(
-                        'Resend',
-                        style: TextStyle(
-                          color: canResend
-                              ? AppColors.primaryGreen
-                              : AppColors.textHint,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (!canResend) ...[
-                  const SizedBox(height: 2),
-                  Text.rich(
-                    TextSpan(
-                      style: const TextStyle(
-                        color: AppColors.textHint,
-                        fontSize: 13,
-                      ),
-                      children: [
-                        const TextSpan(text: 'Resend in '),
-                        TextSpan(
-                          text: countdown,
-                          style: const TextStyle(
-                            color: AppColors.primaryGreen,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
             ),
           ),
         ],

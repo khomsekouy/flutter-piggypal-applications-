@@ -7,8 +7,9 @@ import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
 import 'package:flutter_piggypal_app/core/utils/profile_image_picker.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/view/sign_up_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
-import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_step_indicator.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_step_tabs.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/profile_photo_picker.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/requires_session.dart';
@@ -220,7 +221,7 @@ class _ProfilePhotoPageState extends State<ProfilePhotoPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const AuthStepIndicator(step: 4, totalSteps: 4),
+                AuthStepTabs(labels: signUpTabLabels, currentStep: 3),
                 const SizedBox(height: 24),
                 Center(
                   child: TextButton.icon(

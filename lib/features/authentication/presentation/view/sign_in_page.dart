@@ -139,7 +139,7 @@ class _SignInPageState extends State<SignInPage> {
   }
 
   void _goToCreateAccount() {
-    unawaited(context.pushNamed(AppRoutes.createAccount));
+    unawaited(context.pushNamed(AppRoutes.signUp));
   }
 
   void _goToForgotPassword() {

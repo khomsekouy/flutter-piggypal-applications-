@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_piggypal_app/core/di/injection_container.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/password_reset_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/utils/password_rules.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/app_text_field.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
@@ -12,19 +15,50 @@ import 'package:go_router/go_router.dart';
 /// Last step of the password reset: choose the new password.
 ///
 /// Only reachable once the code sent to [phoneNumber] has been verified —
-/// the number is carried through the flow so the reset can be tied to it.
-class ResetPasswordPage extends StatefulWidget {
-  const ResetPasswordPage({required this.phoneNumber, super.key});
+/// [resetToken] is the proof of that, and without it there is nothing this
+/// screen can do but send the user back to the start.
+class ResetPasswordPage extends StatelessWidget {
+  const ResetPasswordPage({
+    required this.phoneNumber,
+    this.resetToken,
+    super.key,
+  });
 
   /// The verified number, already formatted with its dial code. Empty when
-  /// the route is opened without a `phone` query parameter.
+  /// the route is opened without a `phone` query parameter. Shown, and
+  /// nothing more: the reset is tied to [resetToken], not to this.
   final String phoneNumber;
 
+  /// The ticket `verify-otp` minted, handed over as the route's `extra`.
+  ///
+  /// Null when this screen is reached any other way — a deep link, or a
+  /// restored route — in which case the form is closed and the only way on is
+  /// through the flow proper. Ten minutes, one use, and stored nowhere.
+  final String? resetToken;
+
   @override
-  State<ResetPasswordPage> createState() => _ResetPasswordPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<PasswordResetBloc>(),
+      child: _ResetPasswordView(
+        phoneNumber: phoneNumber,
+        resetToken: resetToken,
+      ),
+    );
+  }
 }
 
-class _ResetPasswordPageState extends State<ResetPasswordPage> {
+class _ResetPasswordView extends StatefulWidget {
+  const _ResetPasswordView({required this.phoneNumber, this.resetToken});
+
+  final String phoneNumber;
+  final String? resetToken;
+
+  @override
+  State<_ResetPasswordView> createState() => _ResetPasswordViewState();
+}
+
+class _ResetPasswordViewState extends State<_ResetPasswordView> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -33,7 +67,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -64,35 +97,72 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     _confirmPasswordController.text,
   );
 
+  /// Read, not watched: this is reached from the submit handler as well as
+  /// from `build`, and `watch` outside a build throws.
+  bool get _isLoading =>
+      context.read<PasswordResetBloc>().state.isUpdatingPassword;
+
+  /// Whether there is a ticket to spend. Without one the server would refuse
+  /// whatever was typed, so the form stays closed and says why.
+  bool get _hasToken => widget.resetToken?.isNotEmpty ?? false;
+
   bool get _canSubmit =>
+      _hasToken &&
       isPasswordPairValid(
         _passwordController.text,
         _confirmPasswordController.text,
       ) &&
       !_isLoading;
 
-  Future<void> _handleUpdatePassword() async {
+  void _handleUpdatePassword() {
     if (!_canSubmit) return;
     FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
-    // TODO(auth): send the new password with the verification token from the
-    // previous step; today this only simulates the round trip.
-    await Future<void>.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    // The messenger lives above the router, so the confirmation survives the
-    // jump back to sign-in.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        backgroundColor: AppColors.surface,
-        content: Text(
-          'Password updated. Sign in with your new password.',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
+    context.read<PasswordResetBloc>().add(
+      PasswordResetSubmitted(
+        resetToken: widget.resetToken!,
+        newPassword: _passwordController.text,
       ),
     );
-    // Replaces the reset stack: the code has been spent, so none of these
-    // screens should be reachable with a back gesture.
+  }
+
+  void _showMessage(String message) {
+    // The messenger lives above the router, so a message survives the jump
+    // off this screen.
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.surface,
+          content: Text(
+            message,
+            style: const TextStyle(color: AppColors.textPrimary),
+          ),
+        ),
+      );
+  }
+
+  void _onResetStateChanged(BuildContext context, PasswordResetState state) {
+    final message = state.errorMessage;
+    if (message != null) {
+      _showMessage(message);
+      context.read<PasswordResetBloc>().add(
+        const PasswordResetErrorDismissed(),
+      );
+      // A rejected token means the ten minutes ran out, or it was already
+      // spent. Nothing on this screen can succeed after that, so the user
+      // goes back to the number rather than retyping a password into a form
+      // that will keep failing.
+      if (state.codeRejected) {
+        context.goNamed(AppRoutes.forgotPassword);
+      }
+      return;
+    }
+
+    if (state.status != PasswordResetStatus.passwordUpdated) return;
+
+    _showMessage('Password updated. Sign in with your new password.');
+    // Replaces the reset stack: the code and the token are both spent, so
+    // none of these screens should be reachable with a back gesture.
     context.goNamed(AppRoutes.signIn);
   }
 
@@ -106,6 +176,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    return BlocConsumer<PasswordResetBloc, PasswordResetState>(
+      listener: _onResetStateChanged,
+      builder: (context, _) => _buildPage(context),
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
     final account = widget.phoneNumber.isEmpty
         ? 'your account'
         : widget.phoneNumber;
@@ -213,6 +290,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
                 ),
+                if (!_hasToken) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'This link has expired. Start again from Forgot '
+                    'Password to get a new code.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.error, fontSize: 13),
+                  ),
+                ],
                 const SizedBox(height: 28),
                 GradientButton(
                   label: 'Update Password',

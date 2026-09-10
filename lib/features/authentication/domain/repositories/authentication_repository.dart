@@ -4,7 +4,11 @@ import 'package:flutter_piggypal_app/core/utils/typedefs.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/account_deletion.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_session.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_user.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/password_reset_request.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/password_reset_token.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/phone_verification_request.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/phone_verification_token.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/registration_code_request.dart';
 
 /// Domain contract for authentication.
 ///
@@ -34,14 +38,49 @@ abstract interface class AuthenticationRepository {
   /// through [updateProfilePhoto] instead. The parameter stays because the
   /// endpoint really does take one, and a caller that has a picture in hand
   /// at registration should not have to make two requests.
+  /// [verificationToken] is what [verifyRegistrationCode] returned, and is
+  /// what makes the account come into existence with its number already
+  /// proved. Left null the account is created unverified and
+  /// [requestPhoneVerification] proves it afterwards — the order sign-up used
+  /// to run in, which the server still accepts.
+  ///
+  /// A token that expired while the user was choosing a password comes back as
+  /// a `VerificationFailure`, never an `AuthFailure`: there is no session in
+  /// this flow to have expired, and the fix is another code rather than
+  /// another sign-in.
   ResultFuture<AuthSession> signUp({
     required String countryCode,
     required String phone,
     required String password,
+    String? verificationToken,
     String? email,
     String? name,
     Uint8List? avatar,
     String? avatarFileName,
+  });
+
+  /// `POST /auth/register/request-otp` — sign-up step one, before there is an
+  /// account. Doubles as the resend.
+  ///
+  /// Unlike [requestPasswordReset], this one says plainly when a number is
+  /// already registered — a `ServerFailure` with the server's own wording —
+  /// and that is not a leak: `signUp` has always had to refuse a taken number,
+  /// so refusing here only moves the refusal earlier, before a message is sent
+  /// to somebody who did not ask for one.
+  ResultFuture<RegistrationCodeRequest> requestRegistrationCode({
+    required String countryCode,
+    required String phone,
+  });
+
+  /// `POST /auth/register/verify-otp` — sign-up step two. Spends the code and
+  /// returns the proof [signUp] carries.
+  ///
+  /// A rejected code comes back as a `VerificationFailure`, never an
+  /// `AuthFailure`: there is no session in this flow to have expired.
+  ResultFuture<PhoneVerificationToken> verifyRegistrationCode({
+    required String countryCode,
+    required String phone,
+    required String code,
   });
 
   /// `POST /auth/logout`, then clears the stored tokens.
@@ -101,6 +140,47 @@ abstract interface class AuthenticationRepository {
   /// A rejected code comes back as a `VerificationFailure`, never an
   /// `AuthFailure`: the session is untouched by a typo.
   ResultVoid confirmPhoneVerification({required String code});
+
+  /// `POST /auth/forgot-password` — step one of three.
+  ///
+  /// Succeeds for a number with no account, and has to: the server answers
+  /// registered and unknown numbers identically so that this cannot be used
+  /// to find out which numbers exist, and a caller that reported the
+  /// difference would give away exactly what the API refuses to.
+  ///
+  /// So a `Right` here means "the request was accepted", never "a code is on
+  /// its way". Only [PasswordResetRequest.devCode] says more, and only
+  /// against a server running with mocked codes.
+  ResultFuture<PasswordResetRequest> requestPasswordReset({
+    required String countryCode,
+    required String phone,
+  });
+
+  /// `POST /auth/verify-otp` — step two. Spends the code and returns the
+  /// ticket that [resetPassword] needs.
+  ///
+  /// A rejected code comes back as a `VerificationFailure`, never an
+  /// `AuthFailure`: there is no session in this flow to have expired.
+  ResultFuture<PasswordResetToken> verifyPasswordResetCode({
+    required String countryCode,
+    required String phone,
+    required String code,
+  });
+
+  /// `POST /auth/reset-password` — step three, against the token step two
+  /// returned. Good for one use inside ten minutes.
+  ///
+  /// The server revokes every session the account had as part of this, so any
+  /// tokens on this device are cleared too — the user signs in again with the
+  /// password they just chose.
+  ///
+  /// A token that has expired or already been spent comes back as a
+  /// `VerificationFailure`, which the caller should read as "start the flow
+  /// again", not as "sign in again".
+  ResultVoid resetPassword({
+    required String resetToken,
+    required String newPassword,
+  });
 
   /// Whether a token is on disk. Cheap: no network, no validation — the splash
   /// screen uses it to decide whether it is worth calling [getCurrentUser].

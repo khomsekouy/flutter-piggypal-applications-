@@ -16,6 +16,7 @@ class AuthenticationState extends Equatable {
     this.user,
     this.errorMessage,
     this.notice,
+    this.verificationExpired = false,
   });
 
   final AuthenticationStatus status;
@@ -38,6 +39,16 @@ class AuthenticationState extends Equatable {
   /// [AuthenticationNoticeDismissed] once a screen has actually shown it.
   final String? notice;
 
+  /// True for one emission when sign-up was refused because the proof that the
+  /// number answered its code had expired or been spent — never because
+  /// anything the user typed was wrong.
+  ///
+  /// The message alone cannot say that, and the screen has to act on it: the
+  /// password pane the user is standing on has nothing left to fix, so it
+  /// sends them back for a fresh code. Not carried across emissions, like
+  /// [errorMessage] beside it.
+  final bool verificationExpired;
+
   bool get isBusy => status == AuthenticationStatus.loading;
   bool get isAuthenticated => status == AuthenticationStatus.authenticated;
 
@@ -56,6 +67,7 @@ class AuthenticationState extends Equatable {
     String? notice,
     bool clearUser = false,
     bool clearNotice = false,
+    bool verificationExpired = false,
   }) {
     return AuthenticationState(
       status: status ?? this.status,
@@ -65,9 +77,18 @@ class AuthenticationState extends Equatable {
       errorMessage: errorMessage,
       // Carried, unlike the above — see [notice].
       notice: clearNotice ? null : (notice ?? this.notice),
+      // Not carried, for the same reason as the message it always arrives
+      // with: the screen acts on it once.
+      verificationExpired: verificationExpired,
     );
   }
 
   @override
-  List<Object?> get props => [status, user, errorMessage, notice];
+  List<Object?> get props => [
+    status,
+    user,
+    errorMessage,
+    notice,
+    verificationExpired,
+  ];
 }

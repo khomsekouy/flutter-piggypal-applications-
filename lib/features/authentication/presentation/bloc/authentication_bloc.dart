@@ -139,11 +139,16 @@ class AuthenticationBloc
         countryCode: event.countryCode,
         phone: event.phone,
         password: event.password,
+        verificationToken: event.verificationToken,
         email: event.email,
         name: event.name,
       ),
     );
-    await _emitSession(result, emit);
+    // The one call where a `VerificationFailure` is possible, and the one that
+    // has to say so: the proof of the number can expire while the user is
+    // choosing a password, and the screen sends them back for a fresh code
+    // rather than leaving them re-reading a password that was never wrong.
+    await _emitSession(result, emit, reportVerificationExpiry: true);
   }
 
   /// Unlike the other calls here, a failure leaves the session alone: the
@@ -338,9 +343,13 @@ class AuthenticationBloc
   /// screen, never a reason to send the user back to sign-in.
   Future<void> _emitSession(
     Either<Failure, AuthSession> result,
-    Emitter<AuthenticationState> emit,
-  ) async {
-    final session = _sessionOutcome(result);
+    Emitter<AuthenticationState> emit, {
+    bool reportVerificationExpiry = false,
+  }) async {
+    final session = _sessionOutcome(
+      result,
+      reportVerificationExpiry: reportVerificationExpiry,
+    );
     emit(session);
     if (session.status != AuthenticationStatus.authenticated) return;
 
@@ -353,12 +362,15 @@ class AuthenticationBloc
   }
 
   AuthenticationState _sessionOutcome(
-    Either<Failure, AuthSession> result,
-  ) => result.match(
+    Either<Failure, AuthSession> result, {
+    bool reportVerificationExpiry = false,
+  }) => result.match(
     (failure) => state.copyWith(
       status: AuthenticationStatus.unauthenticated,
       clearUser: true,
       errorMessage: failure.message,
+      verificationExpired:
+          reportVerificationExpiry && failure is VerificationFailure,
     ),
     (session) => state.copyWith(
       status: AuthenticationStatus.authenticated,

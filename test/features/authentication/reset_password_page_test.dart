@@ -9,13 +9,22 @@ import '../../helpers/helpers.dart';
 
 void main() {
   group('ResetPasswordPage', () {
+    late FakeAuthApi api;
+
+    setUp(() async => api = await setUpDependencies());
+
+    tearDown(tearDownDependencies);
+
     Future<void> pumpPage(
       WidgetTester tester, {
       String phoneNumber = '+855 12345678',
+      String? resetToken = 'test-reset-token-0123456789',
     }) async {
       await tester.binding.setSurfaceSize(const Size(600, 1200));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpApp(ResetPasswordPage(phoneNumber: phoneNumber));
+      await tester.pumpApp(
+        ResetPasswordPage(phoneNumber: phoneNumber, resetToken: resetToken),
+      );
     }
 
     bool submitEnabled(WidgetTester tester) {
@@ -80,7 +89,29 @@ void main() {
       expect(submitEnabled(tester), isFalse);
     });
 
-    testWidgets('updating the password returns to sign in', (tester) async {
+    testWidgets('the form is closed without a token from the code step', (
+      tester,
+    ) async {
+      await pumpPage(tester, resetToken: null);
+
+      await tester.enterText(find.byType(TextField).at(0), 'supersecret');
+      await tester.enterText(find.byType(TextField).at(1), 'supersecret');
+      await tester.pump();
+
+      // The server would refuse whatever was typed, so the button never
+      // offers to try — and the screen says where to go instead.
+      expect(submitEnabled(tester), isFalse);
+      expect(
+        find.textContaining('This link has expired'),
+        findsOneWidget,
+      );
+    });
+
+    /// Pumps the page inside a router with somewhere to land afterwards.
+    Future<void> pumpFlow(
+      WidgetTester tester, {
+      String? resetToken = 'test-reset-token-0123456789',
+    }) async {
       await tester.binding.setSurfaceSize(const Size(600, 1200));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -90,13 +121,20 @@ void main() {
           GoRoute(
             path: '/reset-password',
             name: AppRoutes.resetPassword,
-            builder: (_, _) =>
-                const ResetPasswordPage(phoneNumber: '+855 12345678'),
+            builder: (_, _) => ResetPasswordPage(
+              phoneNumber: '+855 12345678',
+              resetToken: resetToken,
+            ),
           ),
           GoRoute(
             path: '/sign-in',
             name: AppRoutes.signIn,
             builder: (_, _) => const Scaffold(body: Text('sign in stub')),
+          ),
+          GoRoute(
+            path: '/forgot-password',
+            name: AppRoutes.forgotPassword,
+            builder: (_, _) => const Scaffold(body: Text('start over')),
           ),
         ],
       );
@@ -108,12 +146,37 @@ void main() {
       await tester.pump();
       await tester.tap(find.byType(GradientButton));
       await tester.pumpAndSettle();
+    }
 
+    testWidgets('updating the password returns to sign in', (tester) async {
+      await pumpFlow(tester);
+
+      expect(api.requestTo('/auth/reset-password')?.fields, {
+        'resetToken': 'test-reset-token-0123456789',
+        'newPassword': 'supersecret',
+      });
       expect(find.text('sign in stub'), findsOneWidget);
       // The confirmation outlives the route change, so the user knows the
       // reset took before they type their new password.
       expect(
         find.text('Password updated. Sign in with your new password.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an expired token sends the user back to the start', (
+      tester,
+    ) async {
+      api.rejectResetToken = true;
+
+      await pumpFlow(tester);
+
+      // Not sign-in, and not a session-expired message either: there is no
+      // session in this flow, and nothing on this screen can succeed once the
+      // ten minutes are up.
+      expect(find.text('start over'), findsOneWidget);
+      expect(
+        find.text('Reset token is invalid or expired'),
         findsOneWidget,
       );
     });

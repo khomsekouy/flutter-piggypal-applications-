@@ -16,6 +16,7 @@ class SignUp extends UseCase<AuthSession, SignUpParams> {
     countryCode: params.countryCode,
     phone: params.phone,
     password: params.password,
+    verificationToken: params.verificationToken,
     email: params.email,
     name: params.name,
     avatar: params.avatar,
@@ -28,6 +29,7 @@ class SignUpParams extends Equatable {
     required this.countryCode,
     required this.phone,
     required this.password,
+    this.verificationToken,
     this.email,
     this.name,
     this.avatar,
@@ -39,6 +41,10 @@ class SignUpParams extends Equatable {
   /// National number only — no dialling code, no leading zero.
   final String phone;
   final String password;
+
+  /// Proof from `register/verify-otp` that the number above answered its code,
+  /// so the account is created already verified. Null registers it unverified.
+  final String? verificationToken;
   final String? email;
   final String? name;
 
@@ -51,6 +57,7 @@ class SignUpParams extends Equatable {
     countryCode,
     phone,
     password,
+    verificationToken,
     email,
     name,
     avatar,

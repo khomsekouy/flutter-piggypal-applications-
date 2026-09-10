@@ -28,6 +28,8 @@ void main() {
       // The whole module is gone, not just the More tab.
       expect(find.byType(TrainingFinanceApp), findsNothing);
       expect(find.byType(MorePage), findsNothing);
+
+      await tester.disposeApp();
     });
   });
 }

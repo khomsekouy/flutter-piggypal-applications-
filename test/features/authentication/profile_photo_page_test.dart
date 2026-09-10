@@ -143,7 +143,8 @@ void main() {
     testWidgets('is the last of the four sign-up steps', (tester) async {
       await pumpPage(tester);
 
-      expect(find.text('Step 4 of 4'), findsOneWidget);
+      expect(find.text('Photo'), findsOneWidget);
+      expect(find.text('Password'), findsOneWidget);
     });
 
     testWidgets('falls back to the initials on the account', (tester) async {

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_piggypal_app/core/di/injection_container.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_text.dart';
 import 'package:flutter_piggypal_app/core/theme/tf_theme.dart';
-import 'package:flutter_piggypal_app/features/notification/data/notification_store.dart';
+import 'package:flutter_piggypal_app/features/notification/domain/entities/notification.dart';
+import 'package:flutter_piggypal_app/features/notification/presentation/bloc/notification_bloc.dart';
+import 'package:flutter_piggypal_app/features/notification/presentation/notification_time.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/tf_nav.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_app_bar.dart';
 import 'package:flutter_piggypal_app/features/training_finance/presentation/widgets/tf_rows.dart';
@@ -14,33 +18,54 @@ enum _Filter { all, unread }
 /// The notification centre: everything the app wants to tell the user, newest
 /// first, grouped by day.
 ///
-/// Front-end only — reads [NotificationStore] and pushes the related screen
-/// through [TFNav]. Tapping an item marks it read; swiping it away deletes it
-/// with an undo.
-class NotificationPage extends StatefulWidget {
+/// Owns the [NotificationBloc] lifecycle and subscribes to the live Drift
+/// stream; taps push the related screen through [TFNav]. Tapping an item marks
+/// it read; swiping it away deletes it with an undo.
+class NotificationPage extends StatelessWidget {
   const NotificationPage({required this.nav, super.key});
 
   final TFNav nav;
 
   @override
-  State<NotificationPage> createState() => _NotificationPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) =>
+          sl<NotificationBloc>()
+            ..add(const NotificationSubscriptionRequested()),
+      child: _NotificationView(nav: nav),
+    );
+  }
 }
 
-class _NotificationPageState extends State<NotificationPage> {
+class _NotificationView extends StatefulWidget {
+  const _NotificationView({required this.nav});
+
+  final TFNav nav;
+
+  @override
+  State<_NotificationView> createState() => _NotificationViewState();
+}
+
+class _NotificationViewState extends State<_NotificationView> {
   _Filter _filter = _Filter.all;
 
-  NotificationStore get _store => NotificationStore.instance;
+  /// Ids swiped away but whose delete has not come back through the stream
+  /// yet. Without this the row would still be in [NotificationState.items] for
+  /// a frame after [Dismissible] animated it out, which Flutter treats as an
+  /// error.
+  final Set<String> _pendingDelete = {};
 
   void _open(AppNotification item) {
-    _store.markRead(item.id);
+    context.read<NotificationBloc>().add(NotificationRead(item.id));
     final target = item.target;
     if (target == null) return;
     widget.nav.push(target, item.targetParams);
   }
 
   void _delete(AppNotification item) {
-    final index = _store.remove(item.id);
-    if (index < 0) return;
+    final bloc = context.read<NotificationBloc>()
+      ..add(NotificationDeleted(item.id));
+    setState(() => _pendingDelete.add(item.id));
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -48,7 +73,12 @@ class _NotificationPageState extends State<NotificationPage> {
           content: const Text('Notification deleted'),
           action: SnackBarAction(
             label: 'Undo',
-            onPressed: () => _store.restore(item, index),
+            onPressed: () {
+              // The row carries its own timestamp, so writing it back drops it
+              // straight into the spot it came from.
+              setState(() => _pendingDelete.remove(item.id));
+              bloc.add(NotificationRestored(item));
+            },
           ),
         ),
       );
@@ -56,13 +86,19 @@ class _NotificationPageState extends State<NotificationPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<AppNotification>>(
-      valueListenable: _store.items,
-      builder: (context, all, _) {
+    return BlocBuilder<NotificationBloc, NotificationState>(
+      builder: (context, state) {
         // Read once per build so every row measures its age against the same
         // instant — otherwise two rows a millisecond apart could disagree
         // about which day they belong to.
         final now = DateTime.now();
+        final live = {for (final n in state.items) n.id};
+        _pendingDelete.removeWhere((id) => !live.contains(id));
+
+        final all = [
+          for (final n in state.items)
+            if (!_pendingDelete.contains(n.id)) n,
+        ];
         final unread = all.where((n) => !n.read).length;
         final visible = _filter == _Filter.unread
             ? all.where((n) => !n.read).toList()
@@ -83,7 +119,9 @@ class _NotificationPageState extends State<NotificationPage> {
                     ? null
                     : TFIconButton(
                         icon: Icons.done_all_rounded,
-                        onTap: _store.markAllRead,
+                        onTap: () => context.read<NotificationBloc>().add(
+                          const NotificationAllRead(),
+                        ),
                       ),
               ),
               // The header sits outside the body padding, so it carries its

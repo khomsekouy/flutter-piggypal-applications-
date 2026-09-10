@@ -97,6 +97,10 @@ void main() {
       // The whole path in one assertion: the API's `avatarUrl`, through
       // `AuthUser` and `_syncProfile`, onto the avatar the More tab renders.
       expect(renderedImageUrl(tester), api.avatarUrl);
+
+      // The More tab's unread pill holds a Drift stream, and
+      // tearDownDependencies closes the database.
+      await tester.disposeApp();
     });
 
     // One `pumpAppToHome` per file, and this is it: `AppRouter.router` is a

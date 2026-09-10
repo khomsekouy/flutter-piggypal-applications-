@@ -14,7 +14,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
   final NotificationLocalDataSource _local;
 
   @override
-  ResultFuture<List<Notification>> getAll() async {
+  ResultFuture<List<AppNotification>> getAll() async {
     try {
       return Right(await _local.getAll());
     } on DatabaseException catch (e) {
@@ -23,10 +23,10 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }
 
   @override
-  ResultStream<List<Notification>> watchAll() => _local.watchAll();
+  ResultStream<List<AppNotification>> watchAll() => _local.watchAll();
 
   @override
-  ResultFuture<Notification> save(Notification item) async {
+  ResultFuture<AppNotification> save(AppNotification item) async {
     try {
       final saved = await _local.save(NotificationModel.fromEntity(item));
       return Right(saved);
@@ -39,6 +39,26 @@ class NotificationRepositoryImpl implements NotificationRepository {
   ResultVoid delete(String id) async {
     try {
       await _local.delete(id);
+      return const Right(null);
+    } on DatabaseException catch (e) {
+      return Left(DatabaseFailure(e.message));
+    }
+  }
+
+  @override
+  ResultVoid markRead(String id) async {
+    try {
+      await _local.markRead(id);
+      return const Right(null);
+    } on DatabaseException catch (e) {
+      return Left(DatabaseFailure(e.message));
+    }
+  }
+
+  @override
+  ResultVoid markAllRead() async {
+    try {
+      await _local.markAllRead();
       return const Right(null);
     } on DatabaseException catch (e) {
       return Left(DatabaseFailure(e.message));

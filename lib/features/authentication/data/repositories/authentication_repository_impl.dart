@@ -10,7 +10,11 @@ import 'package:flutter_piggypal_app/features/authentication/data/datasources/au
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/account_deletion.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_session.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/auth_user.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/password_reset_request.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/password_reset_token.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/entities/phone_verification_request.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/phone_verification_token.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/entities/registration_code_request.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/repositories/authentication_repository.dart';
 import 'package:fpdart/fpdart.dart';
 
@@ -61,6 +65,7 @@ class AuthenticationRepositoryImpl implements AuthenticationRepository {
     required String countryCode,
     required String phone,
     required String password,
+    String? verificationToken,
     String? email,
     String? name,
     Uint8List? avatar,
@@ -71,6 +76,7 @@ class AuthenticationRepositoryImpl implements AuthenticationRepository {
         countryCode: countryCode,
         phone: phone,
         password: password,
+        verificationToken: verificationToken,
         email: email,
         name: name,
         avatar: avatar,
@@ -214,9 +220,103 @@ class AuthenticationRepositoryImpl implements AuthenticationRepository {
   }
 
   @override
+  ResultFuture<RegistrationCodeRequest> requestRegistrationCode({
+    required String countryCode,
+    required String phone,
+  }) async {
+    try {
+      return Right(
+        await _remote.requestRegistrationCode(
+          countryCode: countryCode,
+          phone: phone,
+        ),
+      );
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
+    }
+  }
+
+  @override
+  ResultFuture<PhoneVerificationToken> verifyRegistrationCode({
+    required String countryCode,
+    required String phone,
+    required String code,
+  }) async {
+    try {
+      return Right(
+        await _remote.verifyRegistrationCode(
+          countryCode: countryCode,
+          phone: phone,
+          code: code,
+        ),
+      );
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
+    }
+  }
+
+  @override
   ResultVoid confirmPhoneVerification({required String code}) async {
     try {
       await _remote.confirmPhoneVerification(code: code);
+      return const Right(null);
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
+    }
+  }
+
+  @override
+  ResultFuture<PasswordResetRequest> requestPasswordReset({
+    required String countryCode,
+    required String phone,
+  }) async {
+    try {
+      return Right(
+        await _remote.forgotPassword(countryCode: countryCode, phone: phone),
+      );
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
+    }
+  }
+
+  @override
+  ResultFuture<PasswordResetToken> verifyPasswordResetCode({
+    required String countryCode,
+    required String phone,
+    required String code,
+  }) async {
+    try {
+      return Right(
+        await _remote.verifyOtp(
+          countryCode: countryCode,
+          phone: phone,
+          code: code,
+        ),
+      );
+    } on Exception catch (e) {
+      return Left(failureFromException(e));
+    }
+  }
+
+  @override
+  ResultVoid resetPassword({
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    try {
+      await _remote.resetPassword(
+        resetToken: resetToken,
+        newPassword: newPassword,
+      );
+
+      // The server revoked every session for the account as part of this, so
+      // whatever is on this device is a dead token. Usually there is nothing
+      // to clear — the reset runs from the signed-out screens — but a user who
+      // reached it with a session would otherwise go on presenting a
+      // credential the server has already dropped, and a rotation in flight
+      // would answer the next 401 with a refresh that no longer works.
+      _session.abandon();
+      await _tokens.clear();
       return const Right(null);
     } on Exception catch (e) {
       return Left(failureFromException(e));

@@ -41,6 +41,7 @@ void main() {
     Future<void> pumpPage(
       WidgetTester tester, {
       String phoneNumber = '+855 12 345 678',
+      String? countryCode,
       VerifyPurpose purpose = VerifyPurpose.signUp,
       String? devCode,
     }) async {
@@ -55,6 +56,7 @@ void main() {
             name: AppRoutes.verifyNumber,
             builder: (_, _) => VerifyNumberPage(
               phoneNumber: phoneNumber,
+              countryCode: countryCode,
               purpose: purpose,
               devCode: devCode,
             ),
@@ -72,8 +74,13 @@ void main() {
           GoRoute(
             path: '/reset-password',
             name: AppRoutes.resetPassword,
+            // Prints both halves: the number is what the screen shows, and
+            // the token in `extra` is what its call actually needs.
             builder: (_, state) => Scaffold(
-              body: Text('reset ${state.uri.queryParameters['phone']}'),
+              body: Text(
+                'reset ${state.uri.queryParameters['phone']} '
+                '/ ${state.extra}',
+              ),
             ),
           ),
         ],
@@ -263,23 +270,117 @@ void main() {
       expect(api.called('/auth/verify-phone/confirm'), isFalse);
     });
 
-    testWidgets('a reset code continues to the new-password screen', (
+    /// Puts the fake where step one leaves it: a reset code has been issued
+    /// for the number, which is what `forgot-password` does.
+    Future<void> pumpResetStep(WidgetTester tester) async {
+      api.resetCodeRequests = 1;
+      await pumpPage(
+        tester,
+        // Split, the way the reset path carries it — `verify-otp` wants the
+        // dial code and the national digits apart.
+        phoneNumber: '12345678',
+        countryCode: '+855',
+        purpose: VerifyPurpose.passwordReset,
+      );
+    }
+
+    testWidgets('the reset path joins the number back up to show it', (
       tester,
     ) async {
-      await pumpPage(tester, purpose: VerifyPurpose.passwordReset);
+      await pumpResetStep(tester);
 
-      // The reset flow re-labels the action, since verifying is not the end
-      // of it, and offers the number back rather than a way to skip.
+      expect(find.text('+855 12345678'), findsOneWidget);
+      // The flow re-labels the action, since verifying is not the end of it,
+      // and offers the number back rather than a way to skip.
       expect(find.text('Continue'), findsOneWidget);
       expect(find.text('Change phone number'), findsOneWidget);
 
-      await enterCode(tester, '123456');
+      await disposeTree(tester);
+    });
+
+    testWidgets('a reset code continues to the new-password screen', (
+      tester,
+    ) async {
+      await pumpResetStep(tester);
+
+      await enterCode(tester, api.mockCode);
       await tester.pumpAndSettle();
 
-      // The verified number carries over, and home is not reached by
-      // verifying alone.
-      expect(find.text('reset +855 12 345 678'), findsOneWidget);
+      // The reset flow's own endpoint, not sign-up's.
+      expect(api.called('/auth/verify-otp'), isTrue);
+      expect(api.called('/auth/verify-phone/confirm'), isFalse);
+      // The number carries over for the copy, the token for the call — and
+      // home is not reached by verifying alone.
+      expect(
+        find.text('reset +855 12345678 / test-reset-token-0123456789'),
+        findsOneWidget,
+      );
       expect(find.text('home stub'), findsNothing);
+    });
+
+    testWidgets('a rejected reset code says so and clears the boxes', (
+      tester,
+    ) async {
+      await pumpResetStep(tester);
+
+      await enterCode(tester, '000000');
+      await tester.pumpAndSettle();
+
+      // The server's own wording, and the boxes emptied for the next try.
+      expect(
+        find.text('Verification code is invalid or expired'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('reset '), findsNothing);
+      final first = tester.widget<TextField>(find.byType(TextField).first);
+      expect(first.controller?.text, isEmpty);
+
+      await disposeTree(tester);
+    });
+
+    testWidgets('a rejected reset code does not claim a new one was sent', (
+      tester,
+    ) async {
+      await pumpResetStep(tester);
+
+      await enterCode(tester, '000000');
+      await tester.pumpAndSettle();
+
+      // Clearing the error message re-emits the status it rode on, which is
+      // still `codeSent`. That must not read as a fresh send.
+      expect(
+        find.textContaining('A new code is on its way'),
+        findsNothing,
+      );
+      expect(
+        api.requests.where((r) => r.path.endsWith('/auth/forgot-password')),
+        isEmpty,
+      );
+
+      await disposeTree(tester);
+    });
+
+    testWidgets('resending on the reset path asks forgot-password again', (
+      tester,
+    ) async {
+      await pumpResetStep(tester);
+      await tester.pump(const Duration(seconds: 60));
+
+      await tester.tap(find.text('Resend'));
+      await tester.pumpAndSettle();
+
+      // Same endpoint as step one: the server retires whatever code was live
+      // and issues a new one.
+      expect(api.requestTo('/auth/forgot-password')?.fields, {
+        'countryCode': '+855',
+        'phone': '12345678',
+      });
+      expect(
+        find.text('A new code is on its way to +855 12345678.'),
+        findsOneWidget,
+      );
+
+      await disposeTree(tester);
     });
 
     testWidgets('an unknown purpose verifies as sign-up', (tester) async {

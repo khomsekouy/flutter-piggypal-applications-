@@ -80,9 +80,50 @@ class FakeAuthApi implements HttpClientAdapter {
   /// How many codes were asked for.
   int codeRequests = 0;
 
+  /// The E.164 number that already has an account, so `register/request-otp`
+  /// and `register/verify-otp` answer 409 for it — the one thing those two
+  /// say out loud that `forgot-password` never may.
+  String? registeredPhone;
+
+  /// The proof `register/verify-otp` mints and `register` spends. Long enough
+  /// to clear the API's own minimum on the field.
+  String verificationToken = 'test-verification-token-0123456789';
+
+  /// Flip to make `register` refuse the proof, as one that expired while the
+  /// user was choosing a password does.
+  bool rejectVerificationToken = false;
+
+  /// How many sign-up codes were asked for.
+  int registrationCodeRequests = 0;
+
+  /// Flip to make `register/request-otp` answer 429, as the fourth send inside
+  /// fifteen minutes does.
+  bool throttleRegistrationCodes = false;
+
   /// Flip to make `PATCH /users/me` refuse the picture, as an unstorable or
   /// oversized file does.
   bool rejectAvatarUpload = false;
+
+  /// The E.164 number `forgot-password` has an account behind. Any other
+  /// number gets the same 200 with no code issued — which is the behaviour
+  /// the client must not be able to tell apart.
+  String resetPhone = '+85512345678';
+
+  /// The ticket `verify-otp` mints and `reset-password` accepts. Long enough
+  /// to clear the API's own 20-character minimum on the field.
+  String resetToken = 'test-reset-token-0123456789';
+
+  /// Flip to make `forgot-password` answer 429, as the fourth send inside
+  /// fifteen minutes does.
+  bool throttleResetRequests = false;
+
+  /// Flip to make `reset-password` refuse the token, as an expired or
+  /// already-spent one does.
+  bool rejectResetToken = false;
+
+  /// How many reset codes were actually issued — so a test can tell a send
+  /// that reached an account from one that quietly did nothing.
+  int resetCodeRequests = 0;
 
   /// The password `delete-account` and `restore-account` accept. Sign-in here
   /// does not check one; those two do, because re-typing it is the whole point
@@ -212,9 +253,14 @@ class FakeAuthApi implements HttpClientAdapter {
       _resetSession();
       return _json(_session('Signed in successfully'), 200);
     }
+    if (path.endsWith('/auth/register/request-otp')) {
+      return _requestRegisterOtp(options.data);
+    }
+    if (path.endsWith('/auth/register/verify-otp')) {
+      return _verifyRegisterOtp(options.data);
+    }
     if (path.endsWith('/auth/register')) {
-      _resetSession();
-      return _json(_session('Account created successfully'), 201);
+      return _register(options.data);
     }
     if (path.endsWith('/auth/refresh')) {
       await holdRefresh?.future;
@@ -228,6 +274,15 @@ class FakeAuthApi implements HttpClientAdapter {
     }
     if (path.endsWith('/auth/restore-account')) {
       return _restoreAccount(options.data);
+    }
+    if (path.endsWith('/auth/forgot-password')) {
+      return _forgotPassword(options.data);
+    }
+    if (path.endsWith('/auth/verify-otp')) {
+      return _verifyOtp(options.data);
+    }
+    if (path.endsWith('/auth/reset-password')) {
+      return _resetPassword(options.data);
     }
     if (path.endsWith('/auth/verify-phone/request')) {
       return _requestPhoneVerification(options);
@@ -269,6 +324,86 @@ class FakeAuthApi implements HttpClientAdapter {
       return null;
     }
     return _json({'message': 'Unauthorized', 'statusCode': 401}, 401);
+  }
+
+  /// `POST /auth/register/request-otp` — sign-up step one, unguarded.
+  ///
+  /// Says plainly that a number is taken, unlike `forgot-password`: the caller
+  /// is claiming a *new* account, and `register` has always had to refuse a
+  /// taken number anyway.
+  ResponseBody _requestRegisterOtp(Object? body) {
+    if (throttleRegistrationCodes) {
+      return _json({
+        'message': 'ThrottlerException: Too Many Requests',
+        'statusCode': 429,
+      }, 429);
+    }
+    if (_e164(body) == registeredPhone) {
+      return _json({
+        'message': 'Phone is already registered',
+        'error': 'Conflict',
+        'statusCode': 409,
+      }, 409);
+    }
+
+    registrationCodeRequests++;
+    // `expiresIn` is the code's life in seconds; `devCode` is echoed only
+    // because codes are mocked, exactly as the API does.
+    return _json({'expiresIn': 600, 'devCode': mockCode}, 200);
+  }
+
+  /// `POST /auth/register/verify-otp` — spends the code, answers with the
+  /// proof `register` carries.
+  ResponseBody _verifyRegisterOtp(Object? body) {
+    final fields = _fields(body);
+
+    // Checked again rather than trusted from step one: the number may have
+    // been claimed in the minute between the two calls.
+    if (_e164(body) == registeredPhone) {
+      return _json({
+        'message': 'Phone is already registered',
+        'error': 'Conflict',
+        'statusCode': 409,
+      }, 409);
+    }
+    // A code that was never issued is as wrong as a mistyped one, and gets the
+    // identical 401.
+    if (fields['code'] != mockCode || registrationCodeRequests == 0) {
+      return _json({
+        'message': 'Verification code is invalid or expired',
+        'error': 'Unauthorized',
+        'statusCode': 401,
+      }, 401);
+    }
+
+    return _json({'verificationToken': verificationToken}, 200);
+  }
+
+  /// `POST /auth/register`, with or without the proof from step two.
+  ///
+  /// With one the account is created already verified, which is what makes the
+  /// sign-up screens' whole reordering worth anything; without one it is
+  /// created unverified, the order the API still accepts.
+  ResponseBody _register(Object? body) {
+    final token = _fields(body)['verificationToken'];
+
+    if (token != null &&
+        (rejectVerificationToken || token != verificationToken)) {
+      // The same 401 an expired proof gets. The route is unguarded, so this
+      // can only ever be about the token.
+      return _json({
+        'message': 'Phone verification is invalid or expired',
+        'error': 'Unauthorized',
+        'statusCode': 401,
+      }, 401);
+    }
+
+    // Stamped in the insert by the real API, so `GET /users/me` reports it
+    // from the first read.
+    if (token != null) phoneVerified = true;
+
+    _resetSession();
+    return _json(_session('Account created successfully'), 201);
   }
 
   ResponseBody _requestPhoneVerification(RequestOptions options) {
@@ -321,6 +456,97 @@ class FakeAuthApi implements HttpClientAdapter {
       'phoneVerified': true,
     }, 200);
   }
+
+  /// `POST /auth/forgot-password` — unguarded, and the same 200 either way.
+  ///
+  /// The sameness is the point: an unknown number and a registered one differ
+  /// only in whether `devCode` comes back, which a real server (one with an
+  /// SMS provider) would not send at all.
+  ResponseBody _forgotPassword(Object? body) {
+    if (throttleResetRequests) {
+      return _json({
+        'message': 'ThrottlerException: Too Many Requests',
+        'statusCode': 429,
+      }, 429);
+    }
+
+    const message = 'If the number is registered, a verification code was sent';
+    if (_e164(body) != resetPhone || accountDeleted) {
+      // No account, or one that is soft-deleted — the real service checks
+      // `status === ACTIVE`. Either way: the same body, and no code issued.
+      return _json({'message': message}, 200);
+    }
+
+    resetCodeRequests++;
+    return _json({'message': message, 'devCode': mockCode}, 200);
+  }
+
+  /// `POST /auth/verify-otp` — spends the code, answers with the reset token.
+  ResponseBody _verifyOtp(Object? body) {
+    final fields = body is Map ? body : const <String, dynamic>{};
+
+    // A code that was never issued is as wrong as a mistyped one, and gets
+    // the identical 401 — the real service will not say which of the two it
+    // was, because that would say whether the number has an account.
+    if ('${fields['code']}' != mockCode ||
+        _e164(body) != resetPhone ||
+        resetCodeRequests == 0) {
+      return _json({
+        'message': 'Verification code is invalid or expired',
+        'error': 'Unauthorized',
+        'statusCode': 401,
+      }, 401);
+    }
+
+    return _json({'resetToken': resetToken}, 200);
+  }
+
+  /// `POST /auth/reset-password` — changes the password and drops every
+  /// session, exactly as the real one does.
+  ResponseBody _resetPassword(Object? body) {
+    final fields = body is Map ? body : const <String, dynamic>{};
+    final token = '${fields['resetToken']}';
+    final password = '${fields['newPassword']}';
+
+    if (rejectResetToken || token != resetToken) {
+      return _json({
+        'message': 'Reset token is invalid or expired',
+        'error': 'Unauthorized',
+        'statusCode': 401,
+      }, 401);
+    }
+
+    // The password login will want from here on. `accountPassword` is what
+    // `delete-account` and `restore-account` check, so a test can prove the
+    // change actually took.
+    accountPassword = password;
+    // One use: the verification row behind the token is consumed.
+    resetToken = 'spent-$resetToken';
+    resetCodeRequests = 0;
+    // Every session goes — this is the recovery path for a stolen account.
+    liveAccessToken = 'revoked';
+    liveRefreshToken = 'revoked';
+    return _json({'message': 'Password updated successfully'}, 200);
+  }
+
+  /// The number as the API joins it: dial code and national digits, no space.
+  String _e164(Object? body) {
+    final fields = _fields(body);
+    return '${fields['countryCode'] ?? ''}${fields['phone'] ?? ''}';
+  }
+
+  /// A request body's text fields, whether it went out as JSON or as a
+  /// multipart form — `register` is the one route that can be either.
+  Map<String, String> _fields(Object? body) => switch (body) {
+    final Map<dynamic, dynamic> map => {
+      for (final entry in map.entries)
+        if (entry.value != null) '${entry.key}': '${entry.value}',
+    },
+    final FormData form => {
+      for (final field in form.fields) field.key: field.value,
+    },
+    _ => const {},
+  };
 
   /// `POST /auth/delete-account` — guarded, and then the password again.
   ///

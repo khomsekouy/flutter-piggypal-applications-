@@ -35,6 +35,10 @@ Future<FakeAuthApi> setUpDependencies({FakeAuthApi? api}) async {
 
 /// Closes the in-memory database before resetting, so the next `setUp` does
 /// not open a second one against the same executor (drift warns about it).
+///
+/// Pair it with [PumpApp.disposeApp] in any test that mounts a screen backed
+/// by a Drift stream: `close()` waits on open query streams, so leaving one
+/// subscribed hangs the whole test file.
 Future<void> tearDownDependencies() async {
   if (sl.isRegistered<AppDatabase>()) {
     await sl<AppDatabase>().close();
@@ -98,5 +102,22 @@ extension PumpApp on WidgetTester {
     await pumpAndSettle();
     await tap(find.byType(GradientButton));
     await pumpAndSettle();
+  }
+
+  /// Replaces the app with an empty tree, so every bloc closes and hands back
+  /// its Drift subscription before the test ends.
+  ///
+  /// Call this at the end of any test that leaves a Drift-backed screen
+  /// mounted — the programs list, the notification centre, or anything
+  /// carrying a `NotificationBell`. Two things go wrong otherwise:
+  /// flutter_test disposes the tree itself and then trips over the
+  /// zero-duration timer drift posts while retiring the query stream, and
+  /// [tearDownDependencies] hangs for ever closing a database that still has
+  /// a live stream. `addTearDown` is too late for both — the checks run
+  /// first, which is why this has to happen inside the test body.
+  Future<void> disposeApp() async {
+    await pumpWidget(const SizedBox());
+    await pumpAndSettle();
+    await pump(Duration.zero);
   }
 }
