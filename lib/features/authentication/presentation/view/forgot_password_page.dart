@@ -2,8 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_piggypal_app/core/di/injection_container.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/core/theme/app_colors.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/password_reset_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/verify_number_page.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/auth_header.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/widgets/gradient_button.dart';
@@ -16,21 +19,32 @@ import 'package:go_router/go_router.dart';
 ///
 /// Step two is [VerifyNumberPage] with [VerifyPurpose.passwordReset]; step
 /// three is the new-password screen it hands off to.
-class ForgotPasswordPage extends StatefulWidget {
+class ForgotPasswordPage extends StatelessWidget {
   const ForgotPasswordPage({super.key});
 
   @override
-  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<PasswordResetBloc>(),
+      child: const _ForgotPasswordView(),
+    );
+  }
 }
 
-class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
+class _ForgotPasswordView extends StatefulWidget {
+  const _ForgotPasswordView();
+
+  @override
+  State<_ForgotPasswordView> createState() => _ForgotPasswordViewState();
+}
+
+class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
   final _phoneController = TextEditingController();
   final _phoneFocus = FocusNode();
 
   /// Whether the number satisfies the Cambodian length rule. Owned by
   /// [PhoneNumberField], which enforces it.
   bool _phoneValid = false;
-  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -41,25 +55,68 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   String get _digits => _phoneController.text.replaceAll(RegExp(r'\D'), '');
 
-  bool get _canSubmit => _phoneValid && !_isLoading;
+  /// Read, not watched: this is reached from the submit handler as well as
+  /// from `build`, and `watch` outside a build throws. The rebuilds come from
+  /// the `BlocConsumer` instead.
+  bool get _isSending =>
+      context.read<PasswordResetBloc>().state.isSendingCode;
 
-  Future<void> _handleSendCode() async {
+  bool get _canSubmit => _phoneValid && !_isSending;
+
+  void _handleSendCode() {
     if (!_canSubmit) return;
     FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
-    // TODO(auth): request the real reset code here. Deliberately continues
-    // even for an unknown number — telling callers which numbers have
-    // accounts would leak them.
-    await Future<void>.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+    context.read<PasswordResetBloc>().add(
+      PasswordResetCodeRequested(
+        countryCode: PhoneNumberField.dialCode,
+        phone: _digits,
+      ),
+    );
+  }
+
+  void _onResetStateChanged(BuildContext context, PasswordResetState state) {
+    final message = state.errorMessage;
+    if (message != null) {
+      // The server refused to *take* the request — throttled, or offline.
+      // Nothing was sent, so this stays put rather than moving on to a code
+      // screen with no code behind it.
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.surface,
+            content: Text(
+              message,
+              style: const TextStyle(color: AppColors.textPrimary),
+            ),
+          ),
+        );
+      context.read<PasswordResetBloc>().add(
+        const PasswordResetErrorDismissed(),
+      );
+      return;
+    }
+
+    if (state.status != PasswordResetStatus.codeSent) return;
+
+    // Moves on even for a number with no account, deliberately: the server
+    // answers registered and unknown numbers identically so that nobody can
+    // use this screen to find out which numbers have accounts, and stopping
+    // here for one of them would give away exactly that.
+    //
+    // The number travels split, not as the line of text this screen shows —
+    // `verify-otp` wants the dial code and the national digits apart, and
+    // re-splitting a display string on the next screen is how that breaks.
     unawaited(
       context.pushNamed(
         AppRoutes.verifyNumber,
         queryParameters: {
-          'phone': '${PhoneNumberField.dialCode} $_digits',
+          'phone': _digits,
+          'countryCode': PhoneNumberField.dialCode,
           'purpose': VerifyPurpose.passwordReset.queryValue,
         },
+        // Only ever non-null against a server with mocked codes.
+        extra: state.devCode,
       ),
     );
   }
@@ -76,6 +133,20 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    return BlocConsumer<PasswordResetBloc, PasswordResetState>(
+      // Only a real change of status, or a message that needs showing. Both
+      // halves matter: clearing a message re-emits the status it was carried
+      // on, and without this that re-emission would read as a fresh
+      // `codeSent` and push the code screen a second time — after a resend
+      // the server had just refused.
+      listenWhen: (previous, current) =>
+          previous.status != current.status || current.errorMessage != null,
+      listener: _onResetStateChanged,
+      builder: (context, _) => _buildPage(context),
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -135,7 +206,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 GradientButton(
                   label: 'Send Code',
                   icon: Icons.sms_outlined,
-                  isLoading: _isLoading,
+                  isLoading: _isSending,
                   onPressed: _canSubmit ? _handleSendCode : null,
                 ),
                 const SizedBox(height: 20),

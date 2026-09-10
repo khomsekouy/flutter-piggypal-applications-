@@ -92,6 +92,7 @@ class _SplashPageState extends State<SplashPage>
                   height: 120,
                   fit: BoxFit.cover,
                 ),
+
               ),
             ),
             // Wordmark + tagline fade in just below the centered icon.

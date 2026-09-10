@@ -10,12 +10,15 @@ class NotificationState extends Equatable {
   });
 
   final NotificationStatus status;
-  final List<Notification> items;
+  final List<AppNotification> items;
   final String? errorMessage;
+
+  /// What the bell badge and the screen's summary both count.
+  int get unreadCount => items.where((n) => !n.read).length;
 
   NotificationState copyWith({
     NotificationStatus? status,
-    List<Notification>? items,
+    List<AppNotification>? items,
     String? errorMessage,
   }) {
     return NotificationState(

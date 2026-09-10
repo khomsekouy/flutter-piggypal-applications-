@@ -5,11 +5,17 @@ import 'package:flutter_piggypal_app/features/notification/domain/entities/notif
 ///
 /// The data layer provides the implementation.
 abstract interface class NotificationRepository {
-  ResultFuture<List<Notification>> getAll();
+  ResultFuture<List<AppNotification>> getAll();
 
-  ResultStream<List<Notification>> watchAll();
+  ResultStream<List<AppNotification>> watchAll();
 
-  ResultFuture<Notification> save(Notification item);
+  ResultFuture<AppNotification> save(AppNotification item);
 
   ResultVoid delete(String id);
+
+  /// Marks one item read. A no-op when it is already read or gone.
+  ResultVoid markRead(String id);
+
+  /// Marks everything read in one statement, rather than a write per row.
+  ResultVoid markAllRead();
 }

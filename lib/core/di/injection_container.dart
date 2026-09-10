@@ -2,6 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_piggypal_app/core/database/app_database.dart';
 import 'package:flutter_piggypal_app/features/authentication/authentication_injection.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/datasources/auth_token_store.dart';
+import 'package:flutter_piggypal_app/features/notification/data/datasources/notification_local_data_source.dart';
+import 'package:flutter_piggypal_app/features/notification/data/notification_seed.dart';
+import 'package:flutter_piggypal_app/features/notification/notification_injection.dart';
 import 'package:flutter_piggypal_app/features/programs/data/datasources/programs_local_data_source.dart';
 import 'package:flutter_piggypal_app/features/programs/data/programs_seed.dart';
 import 'package:flutter_piggypal_app/features/programs/programs_injection.dart';
@@ -35,9 +38,11 @@ Future<void> initDependencies({
   initSavingsGoals();
   initTransactions();
   initPrograms();
+  initNotification();
 
-  // Seed the programs table on first run so the wired list has content.
+  // Seed on first run so the wired lists have content.
   await seedPrograms(sl<ProgramsLocalDataSource>());
+  await seedNotifications(sl<NotificationLocalDataSource>());
 }
 
 void _initCore(AppDatabase? database) {

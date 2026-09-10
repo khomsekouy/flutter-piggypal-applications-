@@ -8,7 +8,11 @@ import 'package:flutter_piggypal_app/core/network/interceptors/refresh_intercept
 import 'package:flutter_piggypal_app/features/authentication/data/models/account_deletion_model.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/models/auth_session_model.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/models/auth_user_model.dart';
+import 'package:flutter_piggypal_app/features/authentication/data/models/password_reset_request_model.dart';
+import 'package:flutter_piggypal_app/features/authentication/data/models/password_reset_token_model.dart';
 import 'package:flutter_piggypal_app/features/authentication/data/models/phone_verification_request_model.dart';
+import 'package:flutter_piggypal_app/features/authentication/data/models/phone_verification_token_model.dart';
+import 'package:flutter_piggypal_app/features/authentication/data/models/registration_code_request_model.dart';
 
 /// The auth calls, as paths under the configured API base URL.
 abstract final class AuthEndpoints {
@@ -17,6 +21,21 @@ abstract final class AuthEndpoints {
   static const login = '/auth/login';
   static const register = '/auth/register';
   static const logout = '/auth/logout';
+
+  /// Sign-up step one: texts a code to a number that has no account yet.
+  ///
+  /// Unguarded, and unguardable — there is no account to sign in to, so the
+  /// number has to come from the body. Answers 409 for a number that is
+  /// already registered rather than texting it, and is rate-limited to 3 calls
+  /// per 15 minutes because every call sends a message somebody pays for.
+  static const registerRequestOtp = '/auth/register/request-otp';
+
+  /// Sign-up step two: trades a correct code for the short-lived
+  /// `verificationToken` that [register] spends.
+  ///
+  /// Carries the number again rather than a handle from step one: the code was
+  /// issued against the number, so the number is what identifies it.
+  static const registerVerifyOtp = '/auth/register/verify-otp';
 
   /// Trades a refresh token for a new pair. The old one is retired by the
   /// server the moment this succeeds.
@@ -31,6 +50,28 @@ abstract final class AuthEndpoints {
   /// necessity — deletion revoked every token, so the password is the only
   /// credential the caller still holds.
   static const restoreAccount = '/auth/restore-account';
+
+  /// Step one of the password reset: texts a code to the number given.
+  ///
+  /// Unguarded, and unguardable — the caller has forgotten the password that
+  /// would get them a session. It answers 200 with the same body whether or
+  /// not the number has an account, so nothing here can be used to find out
+  /// which numbers are registered.
+  static const forgotPassword = '/auth/forgot-password';
+
+  /// Step two: spends the code and mints a short-lived reset token.
+  ///
+  /// Also unguarded — the code *is* the credential. Unlike
+  /// [confirmPhoneVerification] it takes the number, because there is no
+  /// session to read one from.
+  static const verifyOtp = '/auth/verify-otp';
+
+  /// Step three: the new password, against the token step two returned.
+  ///
+  /// Succeeding revokes every session the account had, this device's
+  /// included — a reset is the recovery path for a stolen account, so
+  /// whoever else was signed in has to be thrown out.
+  static const resetPassword = '/auth/reset-password';
 
   /// Sends a code to the number on the caller's own account. Guarded, and it
   /// takes no body: the server reads the number off the access token rather
@@ -63,16 +104,51 @@ abstract interface class AuthenticationRemoteDataSource {
     CancelToken? cancelToken,
   });
 
+  /// `POST /auth/register`.
+  ///
+  /// [verificationToken] is what [verifyRegistrationCode] returned. With one
+  /// the account is created with its number already proved; without one the
+  /// account is created unverified, which is the older order the server still
+  /// accepts. A token that has expired or was already spent comes back as an
+  /// [InvalidVerificationCodeException] — the number has to be proved again,
+  /// but nothing about the form the user filled in is wrong.
   Future<AuthSessionModel> register({
     required String countryCode,
     required String phone,
     required String password,
+    String? verificationToken,
     String? email,
     String? name,
     Uint8List? avatar,
     String? avatarFileName,
     String? deviceId,
     String? deviceName,
+    CancelToken? cancelToken,
+  });
+
+  /// `POST /auth/register/request-otp` — sign-up step one. Doubles as the
+  /// resend: the server retires whatever code was live for the number and
+  /// issues a new one either way.
+  ///
+  /// A number that already has an account is a 409, which arrives as a
+  /// [ServerException] carrying the server's own wording — the screen shows it
+  /// on the number rather than as a passing message.
+  Future<RegistrationCodeRequestModel> requestRegistrationCode({
+    required String countryCode,
+    required String phone,
+    CancelToken? cancelToken,
+  });
+
+  /// `POST /auth/register/verify-otp` — sign-up step two.
+  ///
+  /// Throws [InvalidVerificationCodeException] when the code is wrong,
+  /// expired, or the fifth wrong guess: the server answers all of those
+  /// identically on purpose, so the app cannot tell them apart either. A
+  /// number claimed by somebody else since step one is a 409, as there.
+  Future<PhoneVerificationTokenModel> verifyRegistrationCode({
+    required String countryCode,
+    required String phone,
+    required String code,
     CancelToken? cancelToken,
   });
 
@@ -136,6 +212,42 @@ abstract interface class AuthenticationRemoteDataSource {
     CancelToken? cancelToken,
   });
 
+  /// `POST /auth/forgot-password` — step one of the reset.
+  ///
+  /// Returns normally for a number with no account: the server answers both
+  /// cases the same way, and the app must not turn that into a difference the
+  /// user can see. Rate-limited to 3 calls per 15 minutes.
+  Future<PasswordResetRequestModel> forgotPassword({
+    required String countryCode,
+    required String phone,
+    CancelToken? cancelToken,
+  });
+
+  /// `POST /auth/verify-otp` — step two.
+  ///
+  /// Throws [InvalidVerificationCodeException] when the code is wrong,
+  /// expired, spent, or belongs to a number with no account. The server
+  /// answers all of those identically on purpose, so the app cannot tell them
+  /// apart either.
+  Future<PasswordResetTokenModel> verifyOtp({
+    required String countryCode,
+    required String phone,
+    required String code,
+    CancelToken? cancelToken,
+  });
+
+  /// `POST /auth/reset-password` — step three.
+  ///
+  /// [resetToken] is what [verifyOtp] returned, and is good for one use
+  /// inside ten minutes. Throws [InvalidVerificationCodeException] once it is
+  /// past either — see the implementation for why that rather than
+  /// [UnauthorizedException].
+  Future<void> resetPassword({
+    required String resetToken,
+    required String newPassword,
+    CancelToken? cancelToken,
+  });
+
   /// `POST /auth/verify-phone/confirm`.
   ///
   /// Throws [InvalidVerificationCodeException] when the code is wrong,
@@ -192,6 +304,7 @@ class AuthenticationRemoteDataSourceImpl
     required String countryCode,
     required String phone,
     required String password,
+    String? verificationToken,
     String? email,
     String? name,
     Uint8List? avatar,
@@ -202,11 +315,14 @@ class AuthenticationRemoteDataSourceImpl
   }) async {
     // Null fields are dropped rather than sent as null: the API validates with
     // `forbidNonWhitelisted`, and an explicit null on an optional field fails
-    // the same validators an absent one satisfies.
+    // the same validators an absent one satisfies. An empty `verificationToken`
+    // is dropped by the same rule, which is what the server's own `@MinLength`
+    // on the field is there to catch.
     final fields = _compact({
       'countryCode': countryCode,
       'phone': phone,
       'password': password,
+      'verificationToken': verificationToken,
       'email': email,
       'name': name,
       'deviceId': deviceId,
@@ -226,12 +342,70 @@ class AuthenticationRemoteDataSourceImpl
             ),
           });
 
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        AuthEndpoints.register,
+        data: body,
+        options: _noAuth,
+        cancelToken: cancelToken,
+      );
+      return AuthSessionModel.fromJson(_requireBody(response.data));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        // This route is unguarded, so a 401 here cannot be about a session:
+        // the only credential in the request is the verification token, and
+        // the server answers with this when it has expired or been spent.
+        // Reporting it as an auth failure would tell a user who has no session
+        // yet that theirs had expired.
+        throw InvalidVerificationCodeException(
+          messageFromBody(e.response?.data) ??
+              'That verification has expired. Verify your number again.',
+        );
+      }
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<RegistrationCodeRequestModel> requestRegistrationCode({
+    required String countryCode,
+    required String phone,
+    CancelToken? cancelToken,
+  }) async {
     final json = await _post(
-      AuthEndpoints.register,
-      body: body,
+      AuthEndpoints.registerRequestOtp,
+      body: {'countryCode': countryCode, 'phone': phone},
       cancelToken: cancelToken,
     );
-    return AuthSessionModel.fromJson(json);
+    return RegistrationCodeRequestModel.fromJson(json);
+  }
+
+  @override
+  Future<PhoneVerificationTokenModel> verifyRegistrationCode({
+    required String countryCode,
+    required String phone,
+    required String code,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        AuthEndpoints.registerVerifyOtp,
+        data: {'countryCode': countryCode, 'phone': phone, 'code': code},
+        options: _noAuth,
+        cancelToken: cancelToken,
+      );
+      return PhoneVerificationTokenModel.fromJson(_requireBody(response.data));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        // The six digits, not a session — there is no account here yet, which
+        // is the whole reason this endpoint is unguarded.
+        throw InvalidVerificationCodeException(
+          messageFromBody(e.response?.data) ??
+              'That code is invalid or has expired.',
+        );
+      }
+      throw mapDioException(e);
+    }
   }
 
   @override
@@ -389,6 +563,77 @@ class AuthenticationRemoteDataSourceImpl
         throw InvalidVerificationCodeException(
           messageFromBody(e.response?.data) ??
               'That code is invalid or has expired.',
+        );
+      }
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<PasswordResetRequestModel> forgotPassword({
+    required String countryCode,
+    required String phone,
+    CancelToken? cancelToken,
+  }) async {
+    final json = await _post(
+      AuthEndpoints.forgotPassword,
+      body: {'countryCode': countryCode, 'phone': phone},
+      cancelToken: cancelToken,
+    );
+    return PasswordResetRequestModel.fromJson(json);
+  }
+
+  @override
+  Future<PasswordResetTokenModel> verifyOtp({
+    required String countryCode,
+    required String phone,
+    required String code,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        AuthEndpoints.verifyOtp,
+        data: {'countryCode': countryCode, 'phone': phone, 'code': code},
+        options: _noAuth,
+        cancelToken: cancelToken,
+      );
+      return PasswordResetTokenModel.fromJson(_requireBody(response.data));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        // The six digits, not a session — there is no session here to be
+        // expired, which is the whole reason this endpoint is unguarded.
+        throw InvalidVerificationCodeException(
+          messageFromBody(e.response?.data) ??
+              'That code is invalid or has expired.',
+        );
+      }
+      throw mapDioException(e);
+    }
+  }
+
+  @override
+  Future<void> resetPassword({
+    required String resetToken,
+    required String newPassword,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      await _dio.post<Map<String, dynamic>>(
+        AuthEndpoints.resetPassword,
+        data: {'resetToken': resetToken, 'newPassword': newPassword},
+        options: _noAuth,
+        cancelToken: cancelToken,
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        // Not [UnauthorizedException], even though the status is the one an
+        // expired access token gets: this 401 is about the reset token, and
+        // reporting it as an auth failure would tell a signed-out user their
+        // session had expired — and, worse, drop the tokens of a signed-in
+        // one who took too long over the form.
+        throw InvalidVerificationCodeException(
+          messageFromBody(e.response?.data) ??
+              'That reset link has expired. Start again.',
         );
       }
       throw mapDioException(e);

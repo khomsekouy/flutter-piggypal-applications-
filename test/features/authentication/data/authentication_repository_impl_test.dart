@@ -111,6 +111,45 @@ void main() {
       expect(request.fields['phone'], '97573235');
     });
 
+    test('carries the proof of the number when there is one', () async {
+      await repository.signUp(
+        countryCode: '+855',
+        phone: '97573235',
+        password: 'Passw0rd!23',
+        verificationToken: api.verificationToken,
+      );
+
+      final request = api.requestTo('/auth/register')!;
+      expect(request.fields['verificationToken'], api.verificationToken);
+      // The account is born verified, which is the whole point of proving the
+      // number first — nothing has to ask for a second code afterwards.
+      expect(api.phoneVerified, isTrue);
+    });
+
+    test('a proof the server refuses is the code, not the session', () async {
+      api.rejectVerificationToken = true;
+
+      final result = await repository.signUp(
+        countryCode: '+855',
+        phone: '97573235',
+        password: 'Passw0rd!23',
+        verificationToken: 'stale-token',
+      );
+
+      // A `VerificationFailure`, though the status was a 401: `register` is
+      // unguarded, so this can only be the proof — and reporting it as an
+      // auth failure would tell a user with no session that theirs expired.
+      expect(
+        result.getLeft().toNullable(),
+        isA<VerificationFailure>().having(
+          (failure) => failure.message,
+          'message',
+          'Phone verification is invalid or expired',
+        ),
+      );
+      expect(await tokens.readAccessToken(), isNull);
+    });
+
     test('signs the new account in straight away', () async {
       await repository.signUp(
         countryCode: '+855',

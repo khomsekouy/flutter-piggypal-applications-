@@ -18,6 +18,9 @@ void main() {
       // just that its widget type mounted. Rendered uppercase by the header.
       expect(find.text('OVERVIEW'), findsOneWidget);
       expect(find.byType(DashboardSearchField), findsOneWidget);
+
+      // The dashboard's notification bell holds a Drift stream.
+      await tester.disposeApp();
     });
   });
 }

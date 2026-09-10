@@ -9,14 +9,21 @@ import 'package:flutter_piggypal_app/features/authentication/domain/repositories
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/confirm_phone_verification.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/delete_account.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/get_current_user.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/request_password_reset.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/request_phone_verification.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/request_registration_code.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/reset_password.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/restore_account.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_in.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_out.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/sign_up.dart';
 import 'package:flutter_piggypal_app/features/authentication/domain/usecases/update_profile_photo.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/verify_password_reset_code.dart';
+import 'package:flutter_piggypal_app/features/authentication/domain/usecases/verify_registration_code.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/authentication_bloc.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/password_reset_bloc.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/phone_verification_bloc.dart';
+import 'package:flutter_piggypal_app/features/authentication/presentation/bloc/registration_verification_bloc.dart';
 
 /// Wires authentication into the service locator.
 ///
@@ -63,6 +70,26 @@ void initAuthentication({AuthTokenStore? tokenStore, Dio? dio}) {
         confirmPhoneVerification: sl(),
       ),
     )
+    // One per sign-up screen: the two pre-registration calls belong to the
+    // flow on that one screen, and nothing outside it has a use for the proof
+    // they produce.
+    ..registerFactory(
+      () => RegistrationVerificationBloc(
+        requestRegistrationCode: sl(),
+        verifyRegistrationCode: sl(),
+      ),
+    )
+    // Likewise one per screen, and here that matters more: the three reset
+    // steps are three routes, so there is no single tree for one instance to
+    // sit above. What has to survive between them travels through the
+    // navigation — see PasswordResetBloc.
+    ..registerFactory(
+      () => PasswordResetBloc(
+        requestPasswordReset: sl(),
+        verifyPasswordResetCode: sl(),
+        resetPassword: sl(),
+      ),
+    )
     // Use cases.
     ..registerLazySingleton(() => SignIn(sl()))
     ..registerLazySingleton(() => SignUp(sl()))
@@ -72,7 +99,12 @@ void initAuthentication({AuthTokenStore? tokenStore, Dio? dio}) {
     ..registerLazySingleton(() => DeleteAccount(sl()))
     ..registerLazySingleton(() => RestoreAccount(sl()))
     ..registerLazySingleton(() => RequestPhoneVerification(sl()))
+    ..registerLazySingleton(() => RequestRegistrationCode(sl()))
+    ..registerLazySingleton(() => VerifyRegistrationCode(sl()))
     ..registerLazySingleton(() => ConfirmPhoneVerification(sl()))
+    ..registerLazySingleton(() => RequestPasswordReset(sl()))
+    ..registerLazySingleton(() => VerifyPasswordResetCode(sl()))
+    ..registerLazySingleton(() => ResetPassword(sl()))
     // Repository.
     ..registerLazySingleton<AuthenticationRepository>(
       () => AuthenticationRepositoryImpl(sl(), sl(), sl()),

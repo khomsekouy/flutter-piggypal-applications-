@@ -40,6 +40,7 @@ class AuthenticationSignUpRequested extends AuthenticationEvent {
     required this.countryCode,
     required this.phone,
     required this.password,
+    this.verificationToken,
     this.email,
     this.name,
   });
@@ -47,11 +48,23 @@ class AuthenticationSignUpRequested extends AuthenticationEvent {
   final String countryCode;
   final String phone;
   final String password;
+
+  /// What `register/verify-otp` handed the sign-up screen, proving the number
+  /// answered its code before any of this existed. With it the account is
+  /// created already verified; without it, verification comes afterwards.
+  final String? verificationToken;
   final String? email;
   final String? name;
 
   @override
-  List<Object?> get props => [countryCode, phone, password, email, name];
+  List<Object?> get props => [
+    countryCode,
+    phone,
+    password,
+    verificationToken,
+    email,
+    name,
+  ];
 }
 
 /// `PATCH /users/me` with the picked photo as the multipart `avatar` part.

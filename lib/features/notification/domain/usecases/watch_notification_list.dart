@@ -5,12 +5,12 @@ import 'package:flutter_piggypal_app/features/notification/domain/repositories/n
 
 /// Streams all notification items, re-emitting on any change.
 class WatchNotificationList
-    extends StreamUseCase<List<Notification>, NoParams> {
+    extends StreamUseCase<List<AppNotification>, NoParams> {
   const WatchNotificationList(this._repository);
 
   final NotificationRepository _repository;
 
   @override
-  ResultStream<List<Notification>> call(NoParams params) =>
+  ResultStream<List<AppNotification>> call(NoParams params) =>
       _repository.watchAll();
 }

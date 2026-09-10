@@ -131,7 +131,6 @@ class ParticipantDetailPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         // Linked program.
         TFCard(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
