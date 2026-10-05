@@ -54,6 +54,14 @@ class SecureAuthTokenStore implements AuthTokenStore {
   final FlutterSecureStorage _storage;
   final Uuid _uuid;
 
+  /// What the keychain is known to hold, by key, with `null` meaning "known to
+  /// be empty". Every request reads the access token, and each keychain read
+  /// is a platform-channel round trip; this store is the only thing that
+  /// writes these keys, so after the first read the answer can be served from
+  /// memory. A key missing from here has not been read yet — or a write to it
+  /// failed and left the keychain in a state worth asking about again.
+  final _cache = <String, String?>{};
+
   @override
   Future<String?> readAccessToken() => _read(_accessTokenKey);
 
@@ -86,21 +94,28 @@ class SecureAuthTokenStore implements AuthTokenStore {
   Future<void> clear() async {
     try {
       await _storage.delete(key: _accessTokenKey);
+      _cache[_accessTokenKey] = null;
       await _storage.delete(key: _refreshTokenKey);
+      _cache[_refreshTokenKey] = null;
     } on Exception catch (e) {
+      _cache
+        ..remove(_accessTokenKey)
+        ..remove(_refreshTokenKey);
       throw SecureStorageException('$e');
     }
   }
 
   Future<String?> _read(String key) async {
+    if (_cache.containsKey(key)) return _cache[key];
     try {
-      return await _storage.read(key: key);
+      return _cache[key] = await _storage.read(key: key);
     } on Exception {
       // A read that throws is treated as "nothing stored": the platform
       // channel is missing (tests, an unsupported desktop target) or the
       // keychain entry is unreadable. Either way there is no usable session,
       // and failing the whole launch over it would be worse than signing in
-      // again.
+      // again. Not cached: a keychain that is merely locked right now may
+      // answer on the next request.
       return null;
     }
   }
@@ -108,7 +123,9 @@ class SecureAuthTokenStore implements AuthTokenStore {
   Future<void> _write(String key, String value) async {
     try {
       await _storage.write(key: key, value: value);
+      _cache[key] = value;
     } on Exception catch (e) {
+      _cache.remove(key);
       // Writes do throw: losing the refresh token silently would leave a user
       // signed out on next launch with no explanation.
       throw SecureStorageException('$e');

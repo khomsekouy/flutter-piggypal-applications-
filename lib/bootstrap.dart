@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 
 import 'package:bloc/bloc.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_piggypal_app/core/di/injection_container.dart';
 
@@ -11,7 +12,10 @@ class AppBlocObserver extends BlocObserver {
   @override
   void onChange(BlocBase<dynamic> bloc, Change<dynamic> change) {
     super.onChange(bloc, change);
-    log('onChange(${bloc.runtimeType}, $change)');
+    // Debug only: stringifying every state change costs work on each emit,
+    // and auth states carry account details that have no place in a release
+    // build's logs.
+    if (kDebugMode) log('onChange(${bloc.runtimeType}, $change)');
   }
 
   @override
@@ -22,6 +26,10 @@ class AppBlocObserver extends BlocObserver {
 }
 
 Future<void> bootstrap(FutureOr<Widget> Function() builder) async {
+  // `initDependencies` opens the database and reads the keychain before
+  // `runApp`, and both go through platform channels that need the binding.
+  WidgetsFlutterBinding.ensureInitialized();
+
   FlutterError.onError = (details) {
     log(details.exceptionAsString(), stackTrace: details.stack);
   };

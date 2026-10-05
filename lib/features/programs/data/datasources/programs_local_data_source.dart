@@ -11,6 +11,9 @@ abstract interface class ProgramsLocalDataSource {
   Future<List<ProgramModel>> getAll();
   Stream<List<ProgramModel>> watchAll();
   Future<ProgramModel> save(ProgramModel item);
+
+  /// Upserts [items] in a single transaction.
+  Future<void> saveAll(List<ProgramModel> items);
   Future<void> delete(String id);
 }
 
@@ -44,6 +47,20 @@ class ProgramsLocalDataSourceImpl implements ProgramsLocalDataSource {
     try {
       await _db.into(_db.programs).insertOnConflictUpdate(item.toCompanion());
       return item;
+    } catch (e) {
+      throw DatabaseException(e.toString());
+    }
+  }
+
+  @override
+  Future<void> saveAll(List<ProgramModel> items) async {
+    try {
+      await _db.batch(
+        (b) => b.insertAllOnConflictUpdate(
+          _db.programs,
+          [for (final item in items) item.toCompanion()],
+        ),
+      );
     } catch (e) {
       throw DatabaseException(e.toString());
     }

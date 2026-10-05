@@ -39,9 +39,9 @@ List<Program> buildProgramSeed() {
 /// Inserts the seed rows once, on an empty table. Safe to call on every launch.
 Future<void> seedPrograms(ProgramsLocalDataSource local) async {
   if ((await local.getAll()).isNotEmpty) return;
-  for (final p in buildProgramSeed()) {
-    await local.save(ProgramModel.fromEntity(p));
-  }
+  await local.saveAll([
+    for (final p in buildProgramSeed()) ProgramModel.fromEntity(p),
+  ]);
 }
 
 ProgramStatus _mapStatus(tf.ProgramStatus s) => switch (s) {

@@ -66,7 +66,7 @@ class ProfilePhotoPicker extends StatelessWidget {
                       width: _hasPhoto ? 2 : 1,
                     ),
                   ),
-                  child: ClipOval(child: _buildContent()),
+                  child: ClipOval(child: _buildContent(context)),
                 ),
               ),
               Align(
@@ -93,10 +93,15 @@ class ProfilePhotoPicker extends StatelessWidget {
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(BuildContext context) {
     final image = photo;
     if (image != null) {
-      return Image.memory(image, fit: BoxFit.cover);
+      return Image.memory(
+        image,
+        // Decoded at the size drawn rather than the crop's full 1024px.
+        cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
+        fit: BoxFit.cover,
+      );
     }
     if (initials.isEmpty) {
       return Icon(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_piggypal_app/core/router/app_routes.dart';
 import 'package:flutter_piggypal_app/features/authentication/presentation/view/forgot_password_page.dart';
@@ -26,8 +27,8 @@ abstract final class AppRouter {
   /// The single router instance for the whole app.
   static final GoRouter router = GoRouter(
     initialLocation: AppRoutes.splashPath,
-    // Set to `true` while wiring routes to see every navigation in the logs.
-    debugLogDiagnostics: true,
+    // Every navigation in the logs while developing; silent in release.
+    debugLogDiagnostics: kDebugMode,
     routes: [
       GoRoute(
         path: AppRoutes.splashPath,

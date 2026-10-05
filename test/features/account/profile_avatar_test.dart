@@ -11,14 +11,19 @@ import '../../helpers/helpers.dart';
 String? renderedImageUrl(WidgetTester tester) {
   final images = tester.widgetList<Image>(find.byType(Image));
   if (images.isEmpty) return null;
-  return (images.first.image as NetworkImage).url;
+  // Avatars decode at display size, which wraps the provider in a ResizeImage.
+  final provider = images.first.image;
+  final source = provider is ResizeImage ? provider.imageProvider : provider;
+  return (source as NetworkImage).url;
 }
 
 Future<void> pumpAvatar(WidgetTester tester, {String? imageUrl}) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
-        body: Center(child: TFAvatar(name: 'Dara Sok', imageUrl: imageUrl)),
+        body: Center(
+          child: TFAvatar(name: 'Dara Sok', imageUrl: imageUrl),
+        ),
       ),
     ),
   );

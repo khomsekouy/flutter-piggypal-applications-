@@ -114,21 +114,25 @@ class _AreaPainter extends CustomPainter {
   void _drawDashed(Canvas canvas, Path path, Paint paint) {
     const dash = 4.0;
     const gap = 4.0;
+    // Collected into one path and drawn once, rather than a draw call per
+    // dash.
+    final dashes = Path();
     for (final metric in path.computeMetrics()) {
       var dist = 0.0;
       while (dist < metric.length) {
-        canvas.drawPath(
-          metric.extractPath(dist, dist + dash),
-          paint,
-        );
+        dashes.addPath(metric.extractPath(dist, dist + dash), Offset.zero);
         dist += dash + gap;
       }
     }
+    canvas.drawPath(dashes, paint);
   }
 
   @override
   bool shouldRepaint(_AreaPainter old) =>
-      old.income != income || old.expense != expense || old.pos != pos;
+      old.income != income ||
+      old.expense != expense ||
+      old.pos != pos ||
+      old.neg != neg;
 }
 
 /// Grouped income/expense bars with month labels beneath.

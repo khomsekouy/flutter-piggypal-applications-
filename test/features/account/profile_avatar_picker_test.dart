@@ -188,13 +188,20 @@ void main() {
       expect(find.text('Avatar could not be stored'), findsOneWidget);
     });
 
+    // Avatars decode at display size, which wraps the provider in a
+    // ResizeImage.
+    ImageProvider<Object> source(Image image) => switch (image.image) {
+      final ResizeImage resized => resized.imageProvider,
+      final other => other,
+    };
+
     Finder memoryImage() => find.byWidgetPredicate(
-      (w) => w is Image && w.image is MemoryImage,
+      (w) => w is Image && source(w) is MemoryImage,
       description: 'Image.memory',
     );
 
     Finder networkImage() => find.byWidgetPredicate(
-      (w) => w is Image && w.image is NetworkImage,
+      (w) => w is Image && source(w) is NetworkImage,
       description: 'Image.network',
     );
 

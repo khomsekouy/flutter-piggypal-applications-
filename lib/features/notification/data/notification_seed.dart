@@ -81,7 +81,7 @@ List<AppNotification> buildNotificationSeed() {
 /// cleared instead of refilling on the next start.
 Future<void> seedNotifications(NotificationLocalDataSource local) async {
   if ((await local.getAll()).isNotEmpty) return;
-  for (final n in buildNotificationSeed()) {
-    await local.save(NotificationModel.fromEntity(n));
-  }
+  await local.saveAll([
+    for (final n in buildNotificationSeed()) NotificationModel.fromEntity(n),
+  ]);
 }

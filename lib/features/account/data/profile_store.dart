@@ -1,7 +1,13 @@
+import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 
 /// The signed-in user's account details.
-class Profile {
+///
+/// Compared by value so [ProfileStore.profile] only notifies on a real change:
+/// the session watcher re-copies the account on every auth state, `loading`
+/// included, and identity equality turned each of those into a rebuild of
+/// every screen showing the profile.
+class Profile extends Equatable {
   const Profile({
     required this.name,
     required this.email,
@@ -55,6 +61,18 @@ class Profile {
     avatarUrl: clearAvatarUrl ? null : (avatarUrl ?? this.avatarUrl),
     hue: hue ?? this.hue,
   );
+
+  @override
+  List<Object?> get props => [
+    name,
+    email,
+    phone,
+    role,
+    location,
+    joined,
+    avatarUrl,
+    hue,
+  ];
 }
 
 /// In-memory store of the current [Profile], shared across account screens.

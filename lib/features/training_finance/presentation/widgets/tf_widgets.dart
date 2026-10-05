@@ -190,6 +190,10 @@ class TFAvatar extends StatelessWidget {
         .join();
     final radius = BorderRadius.circular(size * 0.32);
     final url = imageUrl?.trim();
+    // Decode at the size it is drawn, not the upload's (up to 1024px square):
+    // a full-size decode is ~4 MB of RAM per avatar and a raster-thread hitch
+    // on every list it appears in.
+    final cacheSize = (size * MediaQuery.devicePixelRatioOf(context)).ceil();
 
     return Container(
       width: size,
@@ -217,6 +221,7 @@ class TFAvatar extends StatelessWidget {
                 bytes,
                 width: size,
                 height: size,
+                cacheWidth: cacheSize,
                 fit: BoxFit.cover,
               ),
             )
@@ -227,6 +232,7 @@ class TFAvatar extends StatelessWidget {
                 url,
                 width: size,
                 height: size,
+                cacheWidth: cacheSize,
                 fit: BoxFit.cover,
                 // Both builders fall through to the initials underneath, so
                 // there is nothing to draw. Nothing to say on screen either —

@@ -11,6 +11,9 @@ abstract interface class NotificationLocalDataSource {
   Future<List<NotificationModel>> getAll();
   Stream<List<NotificationModel>> watchAll();
   Future<NotificationModel> save(NotificationModel item);
+
+  /// Upserts [items] in a single transaction.
+  Future<void> saveAll(List<NotificationModel> items);
   Future<void> delete(String id);
   Future<void> markRead(String id);
   Future<void> markAllRead();
@@ -50,6 +53,20 @@ class NotificationLocalDataSourceImpl implements NotificationLocalDataSource {
           .into(_db.notifications)
           .insertOnConflictUpdate(item.toCompanion());
       return item;
+    } catch (e) {
+      throw DatabaseException(e.toString());
+    }
+  }
+
+  @override
+  Future<void> saveAll(List<NotificationModel> items) async {
+    try {
+      await _db.batch(
+        (b) => b.insertAllOnConflictUpdate(
+          _db.notifications,
+          [for (final item in items) item.toCompanion()],
+        ),
+      );
     } catch (e) {
       throw DatabaseException(e.toString());
     }
